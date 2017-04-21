@@ -55,23 +55,19 @@ class SensorThresholds(DbusProperties):
         self.Set(
             SensorThresholds.IFACE_NAME,
             'warning_upper',
-            0)
+            'N/A')
         self.Set(
             SensorThresholds.IFACE_NAME,
             'warning_lower',
-            0)
+            'N/A')
         self.Set(
             SensorThresholds.IFACE_NAME,
             'critical_upper',
-            0)
+            'N/A')
         self.Set(
             SensorThresholds.IFACE_NAME,
             'critical_lower',
-            0)
-        self.Set(
-            SensorThresholds.IFACE_NAME,
-            'critical_lower',
-            0)
+            'N/A')
         self.Set(
             SensorThresholds.IFACE_NAME,
             'threshold_state',
@@ -95,16 +91,20 @@ class SensorThresholds(DbusProperties):
             return False
         rtn = False
         current_state = "NORMAL"
-        if (value >= self.properties[iface]['critical_upper']):
+        if (self.properties[iface]['critical_upper'] != 'N/A') and \
+            (value >= self.properties[iface]['critical_upper']):
             current_state = "CRITICAL"
             rtn = True
-        elif (value <= self.properties[iface]['critical_lower']):
+        elif (self.properties[iface]['critical_lower'] != 'N/A') and \
+            (value <= self.properties[iface]['critical_lower']):
             current_state = "CRITICAL"
             rtn = True
-        elif (value >= self.properties[iface]['warning_upper']):
+        elif (self.properties[iface]['warning_upper'] != 'N/A') and \
+            (value >= self.properties[iface]['warning_upper']):
             current_state = "WARNING"
             rtn = True
-        elif (value <= self.properties[iface]['warning_lower']):
+        elif (self.properties[iface]['warning_lower'] != 'N/A') and \
+            (value <= self.properties[iface]['warning_lower']):
             current_state = "WARNING"
             rtn = True
 
