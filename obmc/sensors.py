@@ -93,30 +93,30 @@ class SensorThresholds(DbusProperties):
         current_state = "NORMAL"
         if (self.properties[iface]['critical_upper'] != 'N/A') and \
             (value >= self.properties[iface]['critical_upper']):
-            current_state = "CRITICAL"
+            current_state = "UPPER_CRITICAL"
             rtn = True
         elif (self.properties[iface]['critical_lower'] != 'N/A') and \
             (value <= self.properties[iface]['critical_lower']):
-            current_state = "CRITICAL"
+            current_state = "LOWER_CRITICAL"
             rtn = True
         elif (self.properties[iface]['warning_upper'] != 'N/A') and \
             (value >= self.properties[iface]['warning_upper']):
-            current_state = "WARNING"
+            current_state = "UPPER_WARNING"
             rtn = True
         elif (self.properties[iface]['warning_lower'] != 'N/A') and \
             (value <= self.properties[iface]['warning_lower']):
-            current_state = "WARNING"
+            current_state = "LOWER_WARNING"
             rtn = True
 
         if self.Get(iface, 'threshold_state') != current_state and \
-                current_state == "CRITICAL" and \
+                current_state.find("CRITICAL") != -1 and \
                 self.Get(iface, 'emergency_enabled') is True:
             self.Emergency()
 
         self.Set(iface, 'threshold_state', current_state)
         worst = self.properties[iface]['worst_threshold_state']
-        if (current_state == "CRITICAL" or
-           (current_state == "WARNING" and worst != "CRITICAL")):
+        if (current_state.find("CRITICAL") != -1 or
+           (current_state.find("WARNING") != -1 and worst.find("CRITICAL") == -1)):
             self.Set(iface, 'worst_threshold_state', current_state)
 
         return rtn
