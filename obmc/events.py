@@ -164,7 +164,7 @@ class Event(object):
         log.association, stream = cls._load_string(association_len, stream)
         log.reported_by, stream = cls._load_string(reporter_len, stream)
         log.debug_data = stream[:debug_data_len]
-        log.timestamp = tv_sec
+        log.time = tv_sec
         return log
 # pylint: enable=too-few-public-methods
 # pylint: enable=too-many-instance-attributes
