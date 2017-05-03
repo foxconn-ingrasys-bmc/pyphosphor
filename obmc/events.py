@@ -26,12 +26,12 @@ class Event(object):
             sensor_number=0,
             association='',
             debug_data=''):
-        self.severity = severity
-        self.message = message
-        self.sensor_type = sensor_type
-        self.sensor_number = sensor_number
-        self.association = association
-        self.debug_data = debug_data
+        self.severity = str(severity)
+        self.message = str(message)
+        self.sensor_type = str(sensor_type)
+        self.sensor_number = str(sensor_number)
+        self.association = str(association)
+        self.debug_data = str(debug_data)
         self.logid = 0
         self.time = 0
         self.reported_by = 'BMC'
@@ -61,13 +61,11 @@ class Event(object):
         return self._severity
 
     def _set_severity(self, severity):
-        # FIXME use predefined severity
-        # if not (severity == self.SEVERITY_DEBUG or \
-        #         severity == self.SEVERITY_INFO or \
-        #         severity == self.SEVERITY_ERR):
-        #     raise ValueError('invalid severity')
-        # self._severity = severity
-        self._severity = str(severity)
+        if not (severity == self.SEVERITY_DEBUG or \
+                severity == self.SEVERITY_INFO or \
+                severity == self.SEVERITY_ERR):
+            raise ValueError('invalid severity')
+        self._severity = severity
 
     severity = property(_get_severity, _set_severity)
 
@@ -135,9 +133,6 @@ class Event(object):
 
     @staticmethod
     def _load_string(string_length, stream):
-        '''
-        TODO
-        '''
         string, = struct.unpack(
             '@%dsx' % (string_length - 1),
             stream[:string_length])
@@ -146,7 +141,7 @@ class Event(object):
     @classmethod
     def load(cls, stream):
         '''
-        TODO
+        Create an Event instance from binary stream.
         '''
         magic_number, version, logid, tv_sec, _, message_len, \
             severity_len, sensor_type_len, sensor_number_len, \
@@ -223,8 +218,16 @@ class EventManager(object):
             dbus_interface='org.openbmc.recordlog')
         return tuple(int(x) for x in logids)
 
+    def remove_all_logs(self):
+        '''
+        Remove all logs.
+        '''
+        self._events.clear(dbus_interface='org.openbmc.recordlog')
+
     def remove_log(self, logid):
         '''
         Remove a log by ID.
         '''
-        raise NotImplementedError()
+        object_path = '/org/openbmc/records/events/%d' % int(logid)
+        event = self._bus.get_object(self.SERVICE_NAME, object_path)
+        event.delete(dbus_interface='org.openbmc.Object.Delete')
