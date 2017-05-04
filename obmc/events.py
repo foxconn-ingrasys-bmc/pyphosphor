@@ -22,16 +22,16 @@ class Event(object):
             self,
             severity=SEVERITY_INFO,
             message='',
-            sensor_type='',
-            sensor_number=0,
+            sensor_type='0',
+            sensor_number='0',
             association='',
             debug_data=''):
         self.severity = str(severity)
-        self.message = str(message)
-        self.sensor_type = str(sensor_type)
-        self.sensor_number = str(sensor_number)
-        self.association = str(association)
-        self.debug_data = str(debug_data)
+        self.message = message
+        self.sensor_type = sensor_type
+        self.sensor_number = sensor_number
+        self.association = association
+        self.debug_data = debug_data
         self.logid = 0
         self.time = 0
         self.reported_by = 'BMC'
@@ -47,7 +47,7 @@ class Event(object):
             self.sensor_type,
             self.sensor_number,
             self.association,
-            self.debug_data)
+            ' '.join([('%02X' % x) for x in self.debug_data]))
 
     def _get_logid(self):
         return self._logid
@@ -78,24 +78,34 @@ class Event(object):
     message = property(_get_message, _set_message)
 
     def _get_sensor_type(self):
+        '''Return sensor type in hexadecimal string'''
         return self._sensor_type
 
     def _set_sensor_type(self, sensor_type):
-        self._sensor_type = str(sensor_type)
+        '''
+        sensor_type must be a text string representing a hexadecimal number
+        ranged from 0 to 255.
+        '''
+        sensor_type = int(sensor_type, 16)
+        if not 0 <= sensor_type <= 255:
+            raise ValueError('sensor type %d out of range' % sensor_type)
+        self._sensor_type = str('0x%02X' % sensor_type)
 
     sensor_type = property(_get_sensor_type, _set_sensor_type)
 
     def _get_sensor_number(self):
+        '''Return sensor number in hexadecimal string'''
         return self._sensor_number
 
     def _set_sensor_number(self, sensor_number):
-        if isinstance(sensor_number, str) and sensor_number[:2] == '0x':
-            self._sensor_number = sensor_number
-            return
-        if isinstance(sensor_number, unicode) and sensor_number[:2] == '0x':
-            self._sensor_number = sensor_number
-            return
-        self._sensor_number = str('0x%02X' % int(sensor_number))
+        '''
+        sensor_number must be a text string representing a hexadecimal number
+        ranged from 0 to 255.
+        '''
+        sensor_number = int(sensor_number, 16)
+        if not 0 <= sensor_number <= 255:
+            raise ValueError('sensor number %d out of range' % sensor_number)
+        self._sensor_number = str('0x%02X' % sensor_number)
 
     sensor_number = property(_get_sensor_number, _set_sensor_number)
 
@@ -108,10 +118,30 @@ class Event(object):
     association = property(_get_association, _set_association)
 
     def _get_debug_data(self):
+        '''
+        Return debug data as a list of uint8_t integers.
+        '''
         return self._debug_data
 
     def _set_debug_data(self, debug_data):
-        self._debug_data = str(debug_data)
+        '''
+        debug_data must be either a binary string or a list of uint8_t
+        integers. It will be converted and saved internally as a list of
+        uint8_t integers.
+        '''
+        if isinstance(debug_data, str):
+            self._debug_data = [struct.unpack('@B', x)[0] for x in debug_data]
+        elif isinstance(debug_data, list):
+            for data in debug_data:
+                if not (isinstance(data, int) and 0x0 <= x <= 0xFF):
+                    raise TypeError(
+                        'debug_data can be either a binary string or a list '
+                        'of uint8_t integers')
+            self._debug_data = debug_data
+        else:
+            raise TypeError(
+                'debug_data can be either a binary string or a list '
+                'of uint8_t integers')
 
     debug_data = property(_get_debug_data, _set_debug_data)
 
@@ -222,7 +252,7 @@ class EventManager(object):
         '''
         Remove all logs.
         '''
-        self._events.clear(dbus_interface='org.openbmc.recordlog')
+        return self._events.clear(dbus_interface='org.openbmc.recordlog')
 
     def remove_log(self, logid):
         '''
