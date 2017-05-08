@@ -173,6 +173,7 @@ class HwmonSensor(SensorValue, SensorThresholds):
         else:
             # Keep the val as integer. scale may be floating point
             val = int(value/scale + offset)
+            self.value = SensorValue.getValue(self)
             if (val != self.value):
                 SensorValue.setValue(self, val)
                 self.check_thresholds(val)
