@@ -20,6 +20,11 @@ import dbus
 import dbus.service
 from obmc.dbuslib.bindings import DbusProperties
 
+def sensor_reading_convert(value):
+	if value == -1:
+		return 'N/A'
+	else:
+		return value
 
 ## Abstract class, must subclass
 class SensorValue(DbusProperties):
@@ -173,7 +178,6 @@ class HwmonSensor(SensorValue, SensorThresholds):
         else:
             # Keep the val as integer. scale may be floating point
             val = int(value/scale + offset)
-            self.value = SensorValue.getValue(self)
             if (val != self.value):
                 SensorValue.setValue(self, val)
                 self.check_thresholds(val)
