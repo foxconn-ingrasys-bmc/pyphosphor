@@ -11,8 +11,6 @@ import struct
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-instance-attributes
 class Event(object):
-    MAGIC_NUMBER = 0x4F424D43 # OBMC
-    VERSION = 1
     SEVERITY_DEBUG = 'DEBUG'
     SEVERITY_INFO = 'INFO'
     SEVERITY_ERR = 'ERROR'
@@ -24,29 +22,24 @@ class Event(object):
             message='',
             sensor_type='0',
             sensor_number='0',
-            association='',
             debug_data=''):
         self.severity = str(severity)
         self.message = message
         self.sensor_type = sensor_type
         self.sensor_number = sensor_number
-        self.association = association
         self.debug_data = debug_data
         self.logid = 0
         self.time = 0
-        self.reported_by = 'BMC'
     # pylint: enable=too-many-arguments
 
     def __str__(self):
-        return '%d %s %s %s %s %s %s %s %s' % (
+        return '%d %s %s %s %s %s %s' % (
             self.logid,
             self.time,
-            self.reported_by,
             self.severity,
             self.message,
             self.sensor_type,
             self.sensor_number,
-            self.association,
             ' '.join([('%02X' % x) for x in self.debug_data]))
 
     def _get_logid(self):
@@ -109,14 +102,6 @@ class Event(object):
 
     sensor_number = property(_get_sensor_number, _set_sensor_number)
 
-    def _get_association(self):
-        return self._association
-
-    def _set_association(self, association):
-        self._association = str(association)
-
-    association = property(_get_association, _set_association)
-
     def _get_debug_data(self):
         '''
         Return debug data as a list of uint8_t integers.
@@ -153,14 +138,6 @@ class Event(object):
 
     time = property(_get_time, _set_time)
 
-    def _get_reported_by(self):
-        return self._reported_by
-
-    def _set_reported_by(self, reporter):
-        self._reported_by = str(reporter)
-
-    reported_by = property(_get_reported_by, _set_reported_by)
-
     @staticmethod
     def _load_string(string_length, stream):
         string, = struct.unpack(
@@ -173,21 +150,17 @@ class Event(object):
         '''
         Create an Event instance from binary stream.
         '''
-        magic_number, version, logid, tv_sec, _, message_len, \
+        logid, tv_sec, _, message_len, \
             severity_len, sensor_type_len, sensor_number_len, \
-            association_len, reporter_len, debug_data_len = \
-            struct.unpack('@IHHIIHHHHHHHxx', stream[:32])
-        if not (magic_number == cls.MAGIC_NUMBER and version == cls.VERSION):
-            return None
-        stream = stream[32:]
+            debug_data_len = \
+            struct.unpack('@HIIHHHHHxx', stream[:24])
+        stream = stream[24:]
         log = cls()
         log.logid = logid
         log.message, stream = cls._load_string(message_len, stream)
         log.severity, stream = cls._load_string(severity_len, stream)
         log.sensor_type, stream = cls._load_string(sensor_type_len, stream)
         log.sensor_number, stream = cls._load_string(sensor_number_len, stream)
-        log.association, stream = cls._load_string(association_len, stream)
-        log.reported_by, stream = cls._load_string(reporter_len, stream)
         log.debug_data = stream[:debug_data_len]
         log.time = tv_sec
         return log
@@ -219,7 +192,6 @@ class EventManager(object):
             str(log.message),
             str(log.sensor_type),
             str(log.sensor_number),
-            str(log.association),
             dbus.ByteArray(log.debug_data),
             dbus_interface='org.openbmc.recordlog')
         return log.logid
