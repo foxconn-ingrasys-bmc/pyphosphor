@@ -11,19 +11,19 @@ import struct
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-instance-attributes
 class Event(object):
-    SEVERITY_DEBUG = 'DEBUG'
-    SEVERITY_INFO = 'INFO'
-    SEVERITY_ERR = 'ERROR'
+    SEVERITY_DEBUG = 7
+    SEVERITY_INFO = 6
+    SEVERITY_ERR = 3
 
     # pylint: disable=too-many-arguments
     def __init__(
             self,
             severity=SEVERITY_INFO,
             message='',
-            sensor_type='0',
-            sensor_number='0',
+            sensor_type=0,
+            sensor_number=0,
             debug_data=''):
-        self.severity = str(severity)
+        self.severity = severity
         self.message = message
         self.sensor_type = sensor_type
         self.sensor_number = sensor_number
@@ -33,10 +33,18 @@ class Event(object):
     # pylint: enable=too-many-arguments
 
     def __str__(self):
-        return '%d %s %s %s %s %s %s' % (
+        if self.severity == self.SEVERITY_DEBUG:
+            severity = 'DEBUG'
+        elif self.severity == self.SEVERITY_INFO:
+            severity = 'INFO'
+        elif self.severity == self.SEVERITY_ERR:
+            severity = 'ERROR'
+        else:
+            severity = 'INVALID_SEVERITY'
+        return '%d %s %s %s 0x%02X 0x%02X %s' % (
             self.logid,
             self.time,
-            self.severity,
+            severity,
             self.message,
             self.sensor_type,
             self.sensor_number,
@@ -76,13 +84,11 @@ class Event(object):
 
     def _set_sensor_type(self, sensor_type):
         '''
-        sensor_type must be a text string representing a hexadecimal number
-        ranged from 0 to 255.
+        sensor_type must be of type uint8.
         '''
-        sensor_type = int(sensor_type, 16)
         if not 0 <= sensor_type <= 255:
             raise ValueError('sensor type %d out of range' % sensor_type)
-        self._sensor_type = str('0x%02X' % sensor_type)
+        self._sensor_type = sensor_type
 
     sensor_type = property(_get_sensor_type, _set_sensor_type)
 
@@ -92,13 +98,11 @@ class Event(object):
 
     def _set_sensor_number(self, sensor_number):
         '''
-        sensor_number must be a text string representing a hexadecimal number
-        ranged from 0 to 255.
+        sensor_number must be of type uint8.
         '''
-        sensor_number = int(sensor_number, 16)
         if not 0 <= sensor_number <= 255:
             raise ValueError('sensor number %d out of range' % sensor_number)
-        self._sensor_number = str('0x%02X' % sensor_number)
+        self._sensor_number = sensor_number
 
     sensor_number = property(_get_sensor_number, _set_sensor_number)
 
@@ -145,22 +149,25 @@ class Event(object):
             stream[:string_length])
         return (string, stream[string_length:])
 
+    @staticmethod
+    def _load_uint8(stream):
+        uint8, = struct.unpack('@B', stream[:1])
+        return (uint8, stream[1:])
+
     @classmethod
     def load(cls, stream):
         '''
         Create an Event instance from binary stream.
         '''
-        logid, tv_sec, _, message_len, \
-            severity_len, sensor_type_len, sensor_number_len, \
-            debug_data_len = \
-            struct.unpack('@HIIHHHHHxx', stream[:24])
-        stream = stream[24:]
+        logid, tv_sec, _, message_len, debug_data_len = \
+            struct.unpack('@HIIHH', stream[:16])
+        stream = stream[16:]
         log = cls()
         log.logid = logid
         log.message, stream = cls._load_string(message_len, stream)
-        log.severity, stream = cls._load_string(severity_len, stream)
-        log.sensor_type, stream = cls._load_string(sensor_type_len, stream)
-        log.sensor_number, stream = cls._load_string(sensor_number_len, stream)
+        log.severity, stream = cls._load_uint8(stream)
+        log.sensor_type, stream = cls._load_uint8(stream)
+        log.sensor_number, stream = cls._load_uint8(stream)
         log.debug_data = stream[:debug_data_len]
         log.time = tv_sec
         return log
@@ -188,10 +195,10 @@ class EventManager(object):
         If fails, 0 is returned.
         '''
         log.logid = self._events.acceptBMCMessage(
-            str(log.severity),
+            log.severity,
             str(log.message),
-            str(log.sensor_type),
-            str(log.sensor_number),
+            log.sensor_type,
+            log.sensor_number,
             dbus.ByteArray(log.debug_data),
             dbus_interface='org.openbmc.recordlog')
         return log.logid
