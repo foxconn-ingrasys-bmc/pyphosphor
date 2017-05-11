@@ -199,7 +199,7 @@ class EventManager(object):
             str(log.message),
             log.sensor_type,
             log.sensor_number,
-            dbus.ByteArray(log.debug_data),
+            dbus.ByteArray(''.join(log.debug_data)),
             dbus_interface='org.openbmc.recordlog')
         return log.logid
 
