@@ -1,22 +1,88 @@
+# pylint: disable=too-many-lines
 # -*- coding: utf-8 -*-
 
-# pylint: disable=attribute-defined-outside-init
 # pylint: disable=missing-docstring
 
-import datetime
 import dbus
 import fcntl
-import struct
+import os.path
+import zipfile
 
-# pylint: disable=too-few-public-methods
 # pylint: disable=too-many-instance-attributes
-class Event(object):
-    SEVERITY_INFO = 6
-    SEVERITY_WARN = 4
-    SEVERITY_CRIT = 2
+class BaseEvent(object):
+    SEVERITY_CRIT = 'Critical'
+    SEVERITY_INFO = 'Info'
+    SEVERITY_OKAY = 'OK'
+    SEVERITY_WARN = 'Warning'
 
-    SIZE = 17
-
+    ENTITIES = (
+        'unspecified',
+        'other',
+        'unknown',
+        'processor',
+        'disk or disk array',
+        'peripheral bay',
+        'system management module',
+        'system board',
+        'memory module',
+        'processor module',
+        'power supply',
+        'add-in card',
+        'front panel board',
+        'back panel board',
+        'power system board',
+        'drive backplane',
+        'system internal expansion board',
+        'other system board',
+        'processor board',
+        'power unit / power domain',
+        'power module / DC-to-DC converter',
+        'power management / power distribution board',
+        'chassis back panel board',
+        'system chassis',
+        'sub-chassis',
+        'other chassis board',
+        'disk drive bay',
+        'peripheral bay',
+        'device bay',
+        'fan / cooling device',
+        'cooling unit / cooling domain',
+        'cable / interconnect',
+        'memory device',
+        'system management software',
+        'system firmware',
+        'operating system',
+        'system bus',
+        'group',
+        'remote management communication device',
+        'external environment',
+        'battery',
+        'processing blade',
+        'connectivity switch',
+        'processor / memory module',
+        'I/O module',
+        'processor / I/O module',
+        'management controller firmware',
+        'IPMI channel',
+        'PCI bus',
+        'PCI Express bus',
+        'SCSI bus',
+        'SATA / SAS bus',
+        'processor / front-side bus',
+        'real time clock',
+        None,
+        'air inlet',
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        'air inlet',
+        'processor / CPU',
+        'baseboard / main system board',
+    )
     # pylint: disable=invalid-name
     THRESHOLD_OR_GENERIC_EVENT_NAMES = ((
         # 0x00 RESERVED
@@ -27,12 +93,12 @@ class Event(object):
         'Lower Critical Going High',
         'Lower Non-Recoverable Going Low',
         'Lower Non-Recoverable Going High',
-        'Higher Non-Critical Going Low',
-        'Higher Non-Critical Going High',
-        'Higher Critical Going Low',
-        'Higher Critical Going High',
-        'Higher Non-Recoverable Going Low',
-        'Higher Non-Recoverable Going High',
+        'Upper Non-Critical Going Low',
+        'Upper Non-Critical Going High',
+        'Upper Critical Going Low',
+        'Upper Critical Going High',
+        'Upper Non-Recoverable Going Low',
+        'Upper Non-Recoverable Going High',
     ), ( # 0x02
         'Transition To Idle',
         'Transition To Active',
@@ -347,40 +413,6 @@ class Event(object):
         'FRU Deactivation In Progress',
         'FRU Communication Lost',
     ))
-    SENSOR_SPECIFIC_OEM_EVENT_NAMES = ()
-    OEM_EVENT_NAMES = ((
-        # 0x70
-    ), (
-        # 0x71
-    ), (
-        # 0x72
-    ), (
-        # 0x73
-    ), (
-        # 0x74
-    ), (
-        # 0x75
-    ), (
-        # 0x76
-    ), (
-        # 0x77
-    ), (
-        # 0x78
-    ), (
-        # 0x79
-    ), (
-        # 0x7A
-    ), (
-        # 0x7B
-    ), (
-        # 0x7C
-    ), (
-        # 0x7D
-    ), (
-        # 0x7E
-    ), (
-        # 0x7F
-    ))
     SENSOR_TYPE_NAMES = (
         None, # reserved
         'Temperature',
@@ -426,8 +458,10 @@ class Event(object):
         'Battery',
         'Session Audit',
         'Version Change',
-        'FRU State')
-    EVENT_DATA_2_MESSAGE = {
+        'FRU State',
+    )
+    # pylint: disable=invalid-name
+    SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE = {
         '#0F#00': (
             'unspecified',
             'no system memory is physically installed in the system',
@@ -442,7 +476,8 @@ class Event(object):
             'no video device detected',
             'firmware (bios) rom corruption detected',
             'cpu voltage mismatch',
-            'cpu speed matching failure'),
+            'cpu speed matching failure',
+        ),
         '#0F#02': (
             'unspecified',
             'memory initialization',
@@ -470,571 +505,1142 @@ class Event(object):
             'keyboard test',
             'pointing device test',
             'primary processor initialization',
-            ),
+        ),
+        '#12#03:7:4': (
+            'entry added',
+            'entry added because event did not be map to standard IPMI event',
+            'entry added along with one or more corresponding SEL entries',
+            'log cleared',
+            'log disabled',
+            'log enabled',
+        ),
+        '#12#03:3:0': (
+            'MCA log',
+            'OEM 1',
+            'OEM 2',
+        ),
+        '#19#00': (
+            'S0 / G0',
+            'S1',
+            'S2',
+            'S3',
+            'S4',
+            'S5 / G2',
+            'S4 / S5',
+            'G3 / mechanical off',
+            'sleeping in an S1, S2, or S3 states',
+            'G1 sleeping',
+            'S5 entered by override',
+            'legacy ON state',
+            'legacy OFF state',
+        ),
+        '#1D#07': (
+            'unknown',
+            'chassis control command',
+            'reset via pushbutton',
+            'power-up via power pushbutton',
+            'watchdog expiration',
+            'OEM',
+            ('automatic power-up on AC being applied due to "always restore" '
+             'power restore policy'),
+            ('automatic power-up on AC being applied due to "restore previous '
+             'power state" power restore policy'),
+            'reset via PEF',
+            'soft reset',
+            'power-up via RTC',
+        ),
+        '#21#09': (
+            'PCI',
+            'drive array',
+            'external peripheral connector',
+            'docking',
+            'other standard internal expansion slot',
+            'slot associated with entry ID',
+            'AdvancedTCA',
+            'DIMM/memory device',
+            'FAN',
+            'PCI Express',
+            'SCSI (parallel)',
+            'SATA / SAS',
+        ),
+        '#23#08:7:4': (
+            'none',
+            'SMI',
+            'NMI',
+            'messaging interrupt',
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            'unspecified',
+        ),
+        '#23#08:3:0': (
+            None,
+            'BIOS FRB2',
+            'BIOS/POST',
+            'OS Load',
+            'SMS/OS',
+            'OEM',
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            'unspecified',
+        ),
+        '#2B#07': (
+            'unspecified',
+            'management controller device ID',
+            'management controller firmware revision',
+            'management controller device revision',
+            'management controller manufacturer ID',
+            'management controller IPMI version',
+            'management controller auxiliary firmware ID',
+            'management controller firmware boot block',
+            'other management controller firmware',
+            'system firmware (EFI / BIOS) change',
+            'SMBIOS change',
+            'operating system change',
+            'operating system loader change',
+            'service or diagnostic partition change',
+            'management software agent change',
+            'management software application change',
+            'management software middleware change',
+            'programmable hardware change',
+            'board/FRU component change',
+            'board/FRU replaced with equivalent version',
+            'board/FRU replaced with newer version',
+            'board/FRU replaced with older version',
+            'board/FRU hardware configuration change',
+        ),
+        '#2C:7:4': (
+            'normal state change',
+            'change commanded by software external to FRU',
+            'state change due to operator changing a handle latch',
+            'state change due to operator pressing the hot swap push button',
+            'state change due to FRU programmatic action',
+            'communication lost',
+            'communication lost due to local failure',
+            'state change due to unexpected extraction',
+            'state change due to operator intervention/update',
+            'unable to compute IPMB address',
+            'unexpcted deactivation',
+            None,
+            None,
+            None,
+            None,
+            'state change, cause unknown',
+        ),
     }
-    EVENT_DATA_3_MESSAGE = {
+    # pylint: enable=invalid-name
+    # pylint: disable=invalid-name
+    SENSOR_SPECIFIC_EVENT_DATA_3_MESSAGE = {
         '#08#06': (
             'vendor mismatch',
             'revision mismatch',
             'processor missing',
             'power supply rating mismatch',
-            'voltage rating mismatch'),
+            'voltage rating mismatch',
+        ),
+        '#19#00': (
+            'S0 / G0',
+            'S1',
+            'S2',
+            'S3',
+            'S4',
+            'S5 / G2',
+            'S4 / S5',
+            'G3 / mechanical off',
+            'sleeping in an S1, S2, or S3 states',
+            'G1 sleeping',
+            'S5 entered by override',
+            'legacy ON state',
+            'legacy OFF state',
+        ),
+        '#2A:3:0': (
+            'deactivation cause unspecified',
+            'session deactivated by Close Session command',
+            'session deactivated by timeout',
+            'session deactivated by configuration change',
+        ),
     }
+    # pylint: enable=invalid-name
+    OEM_CHANNEL_NAMES = ()
+    OEM_USER_NAMES = ()
+    # name of entities with entity_id in range [0x90, 0xAF]
+    OEM_CHASSIS_ENTITIES = ()
+    # name of entities with entity_id in range [0xB0, 0xCF]
+    OEM_BOARDSET_ENTITIES = ()
+    # name of entities with entity_id in range [0xD0, 0xFF]
+    OEM_ENTITIES = ()
+    # type of sensors with sensor_type in range [0xC0, 0xFF]
+    OEM_SENSOR_TYPE_NAMES = ()
+    # name of events with event_type in range [0x70, 0x7F]
+    OEM_EVENT_NAMES = ()
+    # name of events with event_type 0x6F and sensor_type in range [0xC0, 0xFF]
+    OEM_SENSOR_SPECIFIC_EVENT_NAMES = ()
+    # message of event with event_data_2_usage 0b10 and event_type in
+    # range [0x70, 0x7F]
+    OEM_EVENT_DATA_2_MESSAGE = {}
+    # message of event with event_data_3_usage 0b10 and event_type in
+    # range [0x70, 0x7F]
+    OEM_EVENT_DATA_3_MESSAGE = {}
+    # pylint: disable=invalid-name
+    # message of event with event_data_2_usage 0b10 and event_type 0x6F or in
+    # range [0x02, 0x0C]
+    OEM_DISCRETE_EVENT_DATA_2_MESSAGE = {}
+    # pylint: enable=invalid-name
+    # pylint: disable=invalid-name
+    # message of event with event_data_3_usage 0b10 and event_type 0x6F or in
+    # range [0x02, 0x0C]
+    OEM_DISCRETE_EVENT_DATA_3_MESSAGE = {}
+    # pylint: enable=invalid-name
+
+    def __init__(self):
+        self.logical_timestamp = None
+        self.log_id = None
+        self.name = None
+        self.record_id = None
+        self.severity = None
+        self.created = None
+        self.entry_type = None
+        self.entry_code = None
+        self.sensor_type = None
+        self.sensor_number = None
+        self.message = None
+        self.event_data_1 = None
+        self.event_data_2 = None
+        self.event_data_3 = None
 
     # pylint: disable=too-many-arguments
-    def __init__(
-            self,
-            severity=SEVERITY_INFO,
-            sensor_type=0,
-            sensor_number=0,
-            event_dir_type=0,
-            event_data_1=0,
-            event_data_2=0,
-            event_data_3=0):
-        self.severity = severity
-        self.sensor_type = sensor_type
-        self.sensor_number = sensor_number
-        self.event_dir_type = event_dir_type
-        self.event_data_1 = event_data_1
-        self.event_data_2 = event_data_2
-        self.event_data_3 = event_data_3
-        self.logid = 0
-        self.time = 0
+    @classmethod
+    def _assemble_message(cls,
+                          sensor_number,
+                          sensor_type,
+                          event_dir_type,
+                          event_data_1,
+                          event_data_2,
+                          event_data_3):
+        event_dir = cls._get_event_dir(event_dir_type)
+        event_type = cls._get_event_type(event_dir_type)
+        event_offset = cls._get_event_offset(event_data_1)
+        # TODO replace sensor_type with sensor_name (need SDR)
+        return '%s sensor 0x%02X %s %s%s' % (
+            cls._stringify_sensor_type(sensor_type),
+            sensor_number,
+            'deasserted' if event_dir else 'asserted',
+            cls._stringify_event_name(sensor_type, event_type, event_offset),
+            cls._stringify_event_data(sensor_type,
+                                      event_type,
+                                      event_data_1,
+                                      event_data_2,
+                                      event_data_3))
     # pylint: enable=too-many-arguments
 
-    def __str__(self):
-        if self.severity == self.SEVERITY_INFO:
-            severity = 'INFO'
-        elif self.severity == self.SEVERITY_WARN:
-            severity = 'WARNING'
-        elif self.severity == self.SEVERITY_CRIT:
-            severity = 'CRITICAL'
-        else:
-            severity = 'INVALID_SEVERITY'
-        return '%d %s %s 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X' % (
-            self.logid,
-            self.time,
-            severity,
-            self.sensor_type,
-            self.sensor_number,
-            self.event_data_1,
-            self.event_data_2,
-            self.event_data_3)
-
-    def _get_logid(self):
-        return self._logid
-
-    def _set_logid(self, logid):
-        self._logid = int(logid)
-
-    logid = property(_get_logid, _set_logid)
-
-    def _get_time(self):
-        return self._time
-
-    def _set_time(self, timestamp):
-        self._time = datetime.datetime.fromtimestamp(timestamp)
-
-    time = property(_get_time, _set_time)
-
-    def _get_severity(self):
-        return self._severity
-
-    def _set_severity(self, severity):
-        if not (severity == self.SEVERITY_INFO or \
-                severity == self.SEVERITY_WARN or \
-                severity == self.SEVERITY_CRIT):
-            raise ValueError('invalid severity %d' % severity)
-        self._severity = severity
-
-    severity = property(_get_severity, _set_severity)
-
-    def stringify_severity(self):
-        if self.severity == self.SEVERITY_INFO:
-            return 'Info'
-        elif self.severity == self.SEVERITY_WARN:
-            return 'Warning'
-        elif self.severity == self.SEVERITY_CRIT:
-            return 'Critical'
-        else:
-            raise ValueError('invalid severity level %d' % self.severity)
-
-    def _get_sensor_type(self):
-        return self._sensor_type
-
-    def _set_sensor_type(self, sensor_type):
-        '''
-        sensor_type must be of type uint8.
-        '''
-        if not 0 <= sensor_type <= 255:
-            raise ValueError('sensor type %d out of range' % sensor_type)
-        self._sensor_type = sensor_type
-
-    sensor_type = property(_get_sensor_type, _set_sensor_type)
-
-    # pylint: disable=too-many-return-statements
-    def stringify_sensor_type(self):
-        if 0x01 <= self.sensor_type <= 0x2C:
-            return self.SENSOR_TYPE_NAMES[self.sensor_type]
-        elif self.sensor_type == 0x00 or 0x2D <= self.sensor_type <= 0xBF:
-            return 'RESERVED'
-        else:
-            raise NotImplementedError(
-                'unknown name for sensor type 0x%02X' % self.sensor_type)
-    # pylint: enable=too-many-return-statements
-
-    def _get_sensor_number(self):
-        return self._sensor_number
-
-    def _set_sensor_number(self, sensor_number):
-        '''
-        sensor_number must be of type uint8.
-        '''
-        if not 0 <= sensor_number <= 255:
-            raise ValueError('sensor number %d out of range' % sensor_number)
-        self._sensor_number = sensor_number
-
-    sensor_number = property(_get_sensor_number, _set_sensor_number)
-
-    def _get_event_dir_type(self):
-        return self._event_dir_type
-
-    def _set_event_dir_type(self, event_dir_type):
-        '''
-        event_dir_type must be of type uint8.
-        '''
-        if not 0 <= event_dir_type <= 255:
-            raise ValueError('event_dir_type %d out of range' % event_dir_type)
-        self._event_dir_type = event_dir_type
-
-    event_dir_type = property(_get_event_dir_type, _set_event_dir_type)
-
-    def _get_event_dir(self):
-        return self._event_dir_type >> 7
-
-    event_dir = property(_get_event_dir)
-
-    def _get_event_type(self):
-        return self._event_dir_type & 0x7F
-
-    event_type = property(_get_event_type)
-
-    def _get_event_data_1(self):
-        return self._event_data_1
-
-    def _set_event_data_1(self, event_data_1):
-        '''
-        event_data_1 must be of type uint8_t.
-        '''
-        if not 0 <= event_data_1 <= 255:
-            raise TypeError('event data 1 %d out of range' % event_data_1)
-        self._event_data_1 = event_data_1
-
-    event_data_1 = property(_get_event_data_1, _set_event_data_1)
-
-    def _get_event_offset(self):
-        return self.event_data_1 & 0x0F
-
-    event_offset = property(_get_event_offset)
-
-    def _get_event_data_2_usage(self):
-        return (self.event_data_1 & 0xC0) >> 6
-
-    event_data_2_usage = property(_get_event_data_2_usage)
-
-    def _get_event_data_3_usage(self):
-        return (self.event_data_1 & 0x30) >> 4
-
-    event_data_3_usage = property(_get_event_data_3_usage)
-
-    def _get_event_data_2(self):
-        return self._event_data_2
-
-    def _set_event_data_2(self, event_data_2):
-        '''
-        event_data_2 must be of type uint8_t.
-        '''
-        if not 0 <= event_data_2 <= 255:
-            raise TypeError('event data 2 %d out of range' % event_data_2)
-        self._event_data_2 = event_data_2
-
-    event_data_2 = property(_get_event_data_2, _set_event_data_2)
-
-    def _get_event_data_3(self):
-        return self._event_data_3
-
-    def _set_event_data_3(self, event_data_3):
-        '''
-        event_data_3 must be of type uint8_t.
-        '''
-        if not 0 <= event_data_3 <= 255:
-            raise TypeError('event data 3 %d out of range' % event_data_3)
-        self._event_data_3 = event_data_3
-
-    event_data_3 = property(_get_event_data_3, _set_event_data_3)
+    @staticmethod
+    def _get_event_data_2_usage(event_data_1):
+        return (event_data_1 & 0xC0) >> 6
 
     @staticmethod
-    def _load_uint16(stream):
-        uint8, = struct.unpack('@H', stream[:2])
-        return (uint8, stream[2:])
+    def _get_event_data_3_usage(event_data_1):
+        return (event_data_1 & 0x30) >> 4
 
     @staticmethod
-    def _load_uint32(stream):
-        uint8, = struct.unpack('@I', stream[:4])
-        return (uint8, stream[4:])
+    def _get_event_dir(event_dir_type):
+        return event_dir_type >> 7
 
     @staticmethod
-    def _load_uint8(stream):
-        uint8, = struct.unpack('@B', stream[:1])
-        return (uint8, stream[1:])
+    def _get_event_offset(event_data_1):
+        return event_data_1 & 0x0F
+
+    @staticmethod
+    def _get_event_type(event_dir_type):
+        return event_dir_type & 0x7F
+
+    # pylint: disable=invalid-name
+    # pylint: disable=too-many-arguments
+    @classmethod
+    def _stringify_discrete_event_data_2(cls,
+                                         sensor_type,
+                                         event_type,
+                                         event_data_1,
+                                         event_data_2,
+                                         event_data_3):
+        event_data_2_usage = cls._get_event_data_2_usage(event_data_1)
+        if event_data_2_usage == 0b00:
+            return ''
+        elif event_data_2_usage == 0b01:
+            previous_event_offset = event_data_2 & 0x0F
+            return ', previous state %s' % cls._stringify_event_name(
+                sensor_type, event_type, previous_event_offset)
+        elif event_data_2_usage == 0b10:
+            index = '#%02X' % event_data_2
+            if cls.OEM_DISCRETE_EVENT_DATA_2_MESSAGE.has_key(index):
+                return ', ' + cls.OEM_DISCRETE_EVENT_DATA_2_MESSAGE[index]
+            else:
+                return cls._virtual_stringify_oem_discrete_event_data_2(
+                    sensor_type,
+                    event_type,
+                    event_data_1,
+                    event_data_2,
+                    event_data_3)
+        else:
+            if event_type == 0x6F:
+                return cls._stringify_sensor_specific_event_data_2(
+                    sensor_type,
+                    event_type,
+                    event_data_1,
+                    event_data_2,
+                    event_data_3)
+            else:
+                return (', sensor-specific event extension code 0x%02X '
+                        'from event data 2' % event_data_2)
+    # pylint: enable=too-many-arguments
+    # pylint: enable=invalid-name
+
+    # pylint: disable=invalid-name
+    # pylint: disable=too-many-arguments
+    @classmethod
+    def _stringify_discrete_event_data_3(cls,
+                                         sensor_type,
+                                         event_type,
+                                         event_data_1,
+                                         event_data_2,
+                                         event_data_3):
+        event_data_3_usage = cls._get_event_data_3_usage(event_data_1)
+        if event_data_3_usage == 0b00:
+            return ''
+        elif event_data_3_usage == 0b01:
+            raise ValueError('reserved event data 3 usage 0b01')
+        elif event_data_3_usage == 0b10:
+            index = '#%02X' % event_data_3
+            if cls.OEM_DISCRETE_EVENT_DATA_3_MESSAGE.has_key(index):
+                return ', ' + cls.OEM_DISCRETE_EVENT_DATA_3_MESSAGE[index]
+            else:
+                return cls._virtual_stringify_oem_discrete_event_data_3(
+                    sensor_type,
+                    event_type,
+                    event_data_1,
+                    event_data_2,
+                    event_data_3)
+        else:
+            if event_type == 0x6F:
+                return cls._stringify_sensor_specific_event_data_3(
+                    sensor_type,
+                    event_type,
+                    event_data_1,
+                    event_data_2,
+                    event_data_3)
+            else:
+                return (', sensor-specific event extension code 0x%02X '
+                        'from event data 3' % event_data_3)
+    # pylint: enable=too-many-arguments
+    # pylint: enable=invalid-name
+
+    # pylint: disable=too-many-arguments
+    @classmethod
+    def _stringify_event_data(cls,
+                              sensor_type,
+                              event_type,
+                              event_data_1,
+                              event_data_2,
+                              event_data_3):
+        assert 0x00 <= event_type <= 0x7F
+        if event_type == 0x00:
+            raise ValueError('reserved event type 0x00')
+        elif event_type == 0x01:
+            return (cls._stringify_threshold_event_data_2(event_data_1,
+                                                          event_data_2) +
+                    cls._stringify_threshold_event_data_3(event_data_1,
+                                                          event_data_3))
+        elif 0x02 <= event_type <= 0x0C:
+            return (cls._stringify_discrete_event_data_2(sensor_type,
+                                                         event_type,
+                                                         event_data_1,
+                                                         event_data_2,
+                                                         event_data_3) +
+                    cls._stringify_discrete_event_data_3(sensor_type,
+                                                         event_type,
+                                                         event_data_1,
+                                                         event_data_2,
+                                                         event_data_3))
+        elif 0x0D <= event_type <= 0x6E:
+            raise ValueError('reserved event type 0x%02X' % event_type)
+        elif event_type == 0x6F:
+            return (cls._stringify_discrete_event_data_2(sensor_type,
+                                                         event_type,
+                                                         event_data_1,
+                                                         event_data_2,
+                                                         event_data_3) +
+                    cls._stringify_discrete_event_data_3(sensor_type,
+                                                         event_type,
+                                                         event_data_1,
+                                                         event_data_2,
+                                                         event_data_3))
+        elif 0x70 <= event_type <= 0x7F:
+            return (cls._stringify_oem_event_data_2(event_type,
+                                                    event_data_1,
+                                                    event_data_2,
+                                                    event_data_3) +
+                    cls._stringify_oem_event_data_3(event_type,
+                                                    event_data_1,
+                                                    event_data_2,
+                                                    event_data_3))
+    # pylint: enable=too-many-arguments
 
     @classmethod
-    def load(cls, stream):
-        '''
-        Create an Event instance from binary stream.
-        '''
-        log = cls()
-        log.logid, stream = cls._load_uint16(stream)
-        log.time, stream = cls._load_uint32(stream)
-        _, stream = cls._load_uint32(stream)
-        log.severity, stream = cls._load_uint8(stream)
-        log.sensor_type, stream = cls._load_uint8(stream)
-        log.sensor_number, stream = cls._load_uint8(stream)
-        log.event_dir_type, stream = cls._load_uint8(stream)
-        log.event_data_1, stream = cls._load_uint8(stream)
-        log.event_data_2, stream = cls._load_uint8(stream)
-        log.event_data_3, stream = cls._load_uint8(stream)
-        return log
+    def _stringify_event_name(cls, sensor_type, event_type, event_offset):
+        assert 0x00 <= event_type <= 0x7F
+        if event_type == 0x00:
+            raise ValueError('reserved event type 0x00')
+        elif 0x01 <= event_type <= 0x0C:
+            return cls._stringify_threshold_or_generic_event_name(event_type,
+                                                                  event_offset)
+        elif 0x0D <= event_type <= 0x6E:
+            raise ValueError('reserved event type 0x%02X' % event_type)
+        elif event_type == 0x6F:
+            return cls._stringify_sensor_specific_event_name(sensor_type,
+                                                             event_offset)
+        elif 0x70 <= event_type <= 0x7F:
+            return cls._stringify_oem_event_name(event_type, event_offset)
 
-    # pylint: disable=invalid-name
-    def _stringify_threshold_or_generic_event_name(self, event_offset):
-        event_names = self.THRESHOLD_OR_GENERIC_EVENT_NAMES[self.event_type]
-        if not 0 <= event_offset < len(event_names):
-            # FIXME raise ValueError
-            return ('invalid event offset %d (sensor 0x%02X, event tpye '
-                    '0x%02X)' % (
-                        event_offset, self.sensor_number, self.event_type))
-            # raise ValueError(
-            #     'invalid event offset %d (sensor 0x%02X, event tpye '
-            #     '0x%02X)' % (
-            #         event_offset, self.sensor_number, self.event_type))
-        return event_names[event_offset]
-    # pylint: enable=invalid-name
-
-    # pylint: disable=invalid-name
-    def _stringify_sensor_specific_event_name(self, event_offset):
-        if 0x00 <= self.sensor_type <= 0x2C:
-            event_names = self.SENSOR_SPECIFIC_EVENT_NAMES[self.sensor_type]
-        elif 0x2D <= self.sensor_type <= 0xBF:
-            # FIXME raise ValueError
-            return 'reserved sensor type 0x%02X (sensor 0x%02X)' % (
-                self.sensor_type, self.sensor_number)
-            # raise ValueError(
-            #     'reserved sensor type 0x%02X (sensor 0x%02X)' % (
-            #         self.sensor_type, self.sensor_number))
-        elif 0xC0 <= self.sensor_type <= 0xFF:
-            offset = self.sensor_type - 0xC0
-            event_names = self.SENSOR_SPECIFIC_OEM_EVENT_NAMES[offset]
-        if not 0 <= event_offset < len(event_names):
-            # FIXME raise ValueError
-            return ('invalid event offset %d (sensor 0x%02X, event type 0x6F, '
-                    'sensor type 0x%02X)' % (
-                        event_offset, self.sensor_number, self.sensor_type))
-            # raise ValueError(
-            #     'invalid event offset %d (sensor 0x%02X, event type 0x6F, '
-            #     'sensor type 0x%02X)' % (
-            #         event_offset, self.sensor_number, self.sensor_type))
-        return event_names[event_offset]
-    # pylint: enable=invalid-name
-
-    def _stringify_oem_event_name(self, event_offset):
-        event_names = self.OEM_EVENT_NAMES[self.event_type - 0x70]
-        if not 0 <= event_offset < len(event_names):
-            # FIXME raise ValueError
-            return ('invalid event offset %d (sensor 0x%02X, event type 0x%02X,'
-                    ' sensor type 0x%02X)' % (
-                        event_offset, self.sensor_number, self.event_type,
-                        self.sensor_type))
-            # raise ValueError(
-            #     'invalid event offset %d (sensor 0x%02X, event type 0x%02X, '
-            #     'sensor type 0x%02X)' % (
-            #         event_offset, self.sensor_number, self.event_type,
-            #         self.sensor_type))
-        return event_names[event_offset]
-
-    def _stringify_event_name(self, event_offset):
-        if self.event_type == 0x00:
-            # FIXME raise ValueError
-            return 'reserved event type 0x00 (sensor 0x%02X)' % (
-                self.sensor_number)
-            # raise ValueError(
-            #     'reserved event type 0x00 (sensor 0x%02X)' % (
-            #         self.sensor_number))
-        elif 0x01 <= self.event_type <= 0x0C:
-            return self._stringify_threshold_or_generic_event_name(event_offset)
-        elif 0x0D <= self.event_type <= 0x6E:
-            # FIXME raise ValueError
-            return 'reserved event type 0x%02X (sensor 0x%02X)' % (
-                self.event_type, self.sensor_number)
-            # raise ValueError(
-            #     'reserved event type 0x%02X (sensor 0x%02X)' % (
-            #         self.event_type, self.sensor_number))
-        elif self.event_type == 0x6F:
-            return self._stringify_sensor_specific_event_name(event_offset)
-        elif 0x70 <= self.event_type <= 0x7F:
-            return self._stringify_oem_event_name(event_offset)
-        else:
-            # FIXME raise ValueError
-            return 'invalid event type %d (sensor 0x%02X)' % (
-                self.event_type, self.sensor_number)
-            # raise ValueError(
-            #     'invalid event type %d (sensor 0x%02X)' % (
-            #         self.event_type, self.sensor_number))
-
-    # pylint: disable=invalid-name
-    def _stringify_threshold_event_data_2(self):
-        if self.event_data_2_usage == 0b00:
+    @classmethod
+    def _stringify_oem_event_data_2(cls,
+                                    event_type,
+                                    event_data_1,
+                                    event_data_2,
+                                    event_data_3):
+        event_data_2_usage = cls._get_event_data_2_usage(event_data_1)
+        if event_data_2_usage == 0b00:
             return ''
-        elif self.event_data_2_usage == 0b01:
-            return ', trigger reading 0x%02X' % self.event_data_2
-        elif self.event_data_2_usage == 0b10:
-            return ', OEM event data 2 0x%02X' % self.event_data_2
-        else:
-            return (', sensor-specific event extension code 0x%02X '
-                    'from event data 2' % self.event_data_2)
-    # pylint: enable=invalid-name
-
-    # pylint: disable=invalid-name
-    def _stringify_threshold_event_data_3(self):
-        if self.event_data_3_usage == 0b00:
-            return ''
-        elif self.event_data_3_usage == 0b01:
-            return ', threshold 0x%02X' % self.event_data_3
-        elif self.event_data_3_usage == 0b10:
-            return ', OEM event data 3 0x%02X' % self.event_data_3
-        else:
-            return (', sensor-specific event extension code 0x%02X '
-                    'from event data 3' % self.event_data_3)
-    # pylint: enable=invalid-name
-
-    # pylint: disable=invalid-name
-    # pylint: disable=too-many-return-statements
-    # pylint: disable=too-many-branches
-    def _stringify_sensor_specific_event_data_2(self):
-        # TODO implement
-        if self.sensor_type == 0x05 and self.event_offset == 0x04:
-            return ', NIC %d' % (self.event_data_2 + 1)
-        elif self.sensor_type == 0x0F and self.event_offset == 0x00:
-            return ', ' + self.EVENT_DATA_2_MESSAGE['#0F#00'][self.event_data_2]
-        elif self.sensor_type == 0x0F and self.event_offset == 0x02:
-            return ', ' + self.EVENT_DATA_2_MESSAGE['#0F#02'][self.event_data_2]
-        elif self.sensor_type == 0x10 and self.event_offset == 0x00:
-            return ', todo'
-        elif self.sensor_type == 0x10 and self.event_offset == 0x01:
-            return ', todo'
-        elif self.sensor_type == 0x10 and self.event_offset == 0x06:
-            return ', todo'
-        elif self.sensor_type == 0x12 and self.event_offset == 0x03:
-            return ', todo'
-        elif self.sensor_type == 0x12 and self.event_offset == 0x04:
-            return ', todo'
-        elif self.sensor_type == 0x12 and self.event_offset == 0x05:
-            return ', todo'
-        elif self.sensor_type == 0x19 and self.event_offset == 0x00:
-            return ', todo'
-        elif self.sensor_type == 0x1D and self.event_offset == 0x07:
-            return ', todo'
-        elif self.sensor_type == 0x21 and self.event_offset == 0x09:
-            return ', todo'
-        elif self.sensor_type == 0x23 and self.event_offset == 0x08:
-            return ', todo'
-        elif self.sensor_type == 0x28 and self.event_offset == 0x04:
-            return ', todo'
-        elif self.sensor_type == 0x28 and self.event_offset == 0x05:
-            return ', todo'
-        elif self.sensor_type == 0x2A and self.event_offset == 0x03:
-            return ', todo'
-        elif self.sensor_type == 0x2B and self.event_offset == 0x07:
-            return ', todo'
-        elif self.sensor_type == 0x2C and self.event_offset == 0x07:
-            return ', todo'
-        return ''
-    # pylint: enable=too-many-branches
-    # pylint: enable=too-many-return-statements
-    # pylint: enable=invalid-name
-
-    # pylint: disable=invalid-name
-    def _stringify_discrete_event_data_2(self):
-        if self.event_data_2_usage == 0b00:
-            return ''
-        elif self.event_data_2_usage == 0b01:
-            return ', previous state %s' % self._stringify_event_name(
-                self.event_data_2 & 0x0F)
-        elif self.event_data_2_usage == 0b10:
-            return ', OEM event data 2 0x%02X' % self.event_data_2
-        else:
-            if self.event_type == 0x6F:
-                return self._stringify_sensor_specific_event_data_2()
+        elif event_data_2_usage == 0b01:
+            return ', previous state 0x%02X' % event_data_2
+        elif event_data_2_usage == 0b10:
+            index = '#%02X' % event_data_2
+            if cls.OEM_EVENT_DATA_2_MESSAGE.has_key(index):
+                return ', ' + cls.OEM_EVENT_DATA_2_MESSAGE[index]
             else:
-                return (', sensor-specific event extension code 0x%02X '
-                        'from event data 2' % self.event_data_2)
+                return cls._virtual_stringify_oem_event_data_2(event_type,
+                                                               event_data_1,
+                                                               event_data_2,
+                                                               event_data_3)
+        else:
+            raise ValueError('reserved event data 2 usage 0b11')
+
+    @classmethod
+    def _stringify_oem_event_data_3(cls,
+                                    event_type,
+                                    event_data_1,
+                                    event_data_2,
+                                    event_data_3):
+        event_data_3_usage = cls._get_event_data_3_usage(event_data_1)
+        if event_data_3_usage == 0b00:
+            return ''
+        elif event_data_3_usage == 0b01:
+            raise ValueError('reserved event data 3 usage 0b01')
+        elif event_data_3_usage == 0b10:
+            index = '#%02X' % event_data_3
+            if cls.OEM_EVENT_DATA_3_MESSAGE.has_key(index):
+                return ', ' + cls.OEM_EVENT_DATA_3_MESSAGE[index]
+            else:
+                return cls._virtual_stringify_oem_event_data_3(event_type,
+                                                               event_data_1,
+                                                               event_data_2,
+                                                               event_data_3)
+        else:
+            raise ValueError('reserved event data 3 usage 0b11')
+
+    @classmethod
+    def _stringify_oem_event_name(cls, event_type, event_offset):
+        event_names = cls.OEM_EVENT_NAMES[event_type - 0x70]
+        return event_names[event_offset]
+
+    # pylint: disable=invalid-name
+    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-return-statements
+    # pylint: disable=too-many-statements
+    @classmethod
+    def _stringify_sensor_specific_event_data_2(cls,
+                                                sensor_type,
+                                                event_type,
+                                                event_data_1,
+                                                event_data_2,
+                                                event_data_3):
+        event_offset = cls._get_event_offset(event_data_1)
+        if sensor_type == 0x05 and event_offset == 0x04:
+            return ', NIC %d' % event_data_2
+        elif sensor_type == 0x0F and event_offset == 0x00:
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#0F#00']
+            return ', ' + messages[event_data_2]
+        elif sensor_type == 0x0F and event_offset == 0x02:
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#0F#02']
+            return ', ' + messages[event_data_2]
+        elif sensor_type == 0x10 and event_offset == 0x00:
+            return ', memory module %d' % event_data_2
+        elif sensor_type == 0x10 and event_offset == 0x01:
+            all_events = (event_data_3 & 0x20) >> 5
+            if (event_data_3 & 0x10) >> 4 == 0:
+                event_dir = 'deassertion'
+            else:
+                event_dir = 'assertion'
+            event_type = event_data_2
+            if all_events:
+                event_name = 'all events of event type 0x%02X' % event_type
+            else:
+                affected_event_offset = event_data_3 & 0x0F
+                event_name = cls._stringify_event_name(
+                    sensor_type, event_type, affected_event_offset)
+            return ', %s of %s' % (event_dir, event_name)
+        elif sensor_type == 0x10 and event_offset == 0x06:
+            return ', processor %d' % event_data_2
+        elif sensor_type == 0x12 and event_offset == 0x03:
+            messages1 = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#12#03:7:4']
+            messages2 = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#12#03:3:0']
+            return ', %s, %s' % (
+                messages1[event_data_2],
+                messages2[event_data_2])
+        elif sensor_type == 0x12 and event_offset == 0x04:
+            pef_actions = []
+            if event_data_2 & 0x1:
+                pef_actions.append('alert')
+            if event_data_2 & 0x2:
+                pef_actions.append('power off')
+            if event_data_2 & 0x4:
+                pef_actions.append('reset')
+            if event_data_2 & 0x8:
+                pef_actions.append('power cycle')
+            if event_data_2 & 0x10:
+                pef_actions.append('OEM action')
+            if event_data_2 & 0x20:
+                pef_actions.append('diagnostic interrupt (NMI)')
+            if pef_actions:
+                return ', PEF actions: %s' % ', '.join(pef_actions)
+            else:
+                return ''
+        elif sensor_type == 0x12 and event_offset == 0x05:
+            pair = 'second' if event_data_2 & 0x80 else 'first'
+            device = 'SDR' if event_data_2 & 0x0F else 'SEL'
+            return ', %s of pair, %s timestamp clock updated' % (pair, device)
+        elif sensor_type == 0x19 and event_offset == 0x00:
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#19#00']
+            return ', requested power state: ' + messages[event_data_2]
+        elif sensor_type == 0x1D and event_offset == 0x07:
+            restart_cause_index = event_data_2 & 0x0F
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#1D#07']
+            return ', ' + messages[restart_cause_index]
+        elif sensor_type == 0x21 and event_offset == 0x09:
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#21#09']
+            return ', ' + messages[event_data_2]
+        elif sensor_type == 0x23 and event_offset == 0x08:
+            messages1 = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#23#08:7:4']
+            messages2 = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#23#08:3:0']
+            return ', type: %s, timer: %s' % (
+                messages1[event_data_2],
+                messages2[event_data_2])
+        elif sensor_type == 0x28 and event_offset == 0x00:
+            return ', sensor number 0x%02X' % event_data_2
+        elif sensor_type == 0x28 and event_offset == 0x04:
+            return ', sensor number 0x%02X' % event_data_2
+        elif sensor_type == 0x28 and event_offset == 0x05:
+            fru_type = 'logical' if event_data_2 & 0x80 else 'physical'
+            if event_data_2 & 0x14:
+                bus = 'LUN 0x%02X' % (event_data_2 & 0x14) >> 3
+                if event_data_2 & 0x07:
+                    bus += ', bus 0x%02X' % (event_data_2 & 0x07)
+            else:
+                bus = 'IPMB'
+            return ', %s FRU, at %s' % (fru_type, bus)
+        elif sensor_type == 0x2A:
+            user_id = event_data_2 & 0x3F
+            if user_id != 0:
+                return ', user %s' % cls.OEM_USER_NAMES[user_id]
+            else:
+                return ', unspecified user'
+        elif sensor_type == 0x2B and event_offset == 0x07:
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#2B#07']
+            return ', ' + messages[event_data_2]
+        elif sensor_type == 0x2C:
+            cause_index = (event_data_2 & 0xF0) >> 4
+            event_offset = event_data_2 & 0x0F
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_2_MESSAGE['#2C:7:4']
+            return ', %s, previous state: %s' % (
+                messages[cause_index],
+                cls._stringify_sensor_specific_event_name(sensor_type,
+                                                          event_offset))
+        return ''
+    # pylint: enable=too-many-statements
+    # pylint: enable=too-many-return-statements
+    # pylint: enable=too-many-locals
+    # pylint: enable=too-many-branches
+    # pylint: enable=too-many-arguments
     # pylint: enable=invalid-name
 
     # pylint: disable=invalid-name
-    # pylint: disable=too-many-return-statements
+    # pylint: disable=too-many-arguments
     # pylint: disable=too-many-branches
-    def _stringify_sensor_specific_event_data_3(self):
-        # TODO implement
-        if self.sensor_type == 0x08 and self.event_offset == 0x06:
-            error_type = self.event_data_3 & 0x0F
+    # pylint: disable=too-many-return-statements
+    # pylint: disable=unused-argument
+    @classmethod
+    def _stringify_sensor_specific_event_data_3(cls,
+                                                sensor_type,
+                                                event_type,
+                                                event_data_1,
+                                                event_data_2,
+                                                event_data_3):
+        event_offset = cls._get_event_offset(event_data_1)
+        if sensor_type == 0x08 and event_offset == 0x06:
+            error_type = event_data_3 & 0x0F
             if 0x00 <= error_type <= 0x04:
-                return ', ' + self.EVENT_DATA_3_MESSAGE['#08#06'][error_type]
+                messages = cls.SENSOR_SPECIFIC_EVENT_DATA_3_MESSAGE['#08#06']
+                return ', ' + messages[error_type]
             else:
-                # FIXME raise ValueError
-                return ('reserved error type 0x%02X (sensor 0x%02X, '
-                        'event data 2 0x%02X)' % (
-                            error_type, self.sensor_number, self.event_data_3))
-                # raise ValueError(
-                #     'reserved error type 0x%02X (sensor 0x%02X, '
-                #     'event data 2 0x%02X)' % (
-                #         error_type, self.sensor_number, self.event_data_3))
-        elif self.sensor_type == 0x0C and self.event_offset == 0x08:
-            return ', memory module 0x%02X' % self.event_data_3
-        elif self.sensor_type == 0x10 and self.event_offset == 0x01:
-            return ', todo'
-        elif self.sensor_type == 0x10 and self.event_offset == 0x05:
-            return ', todo'
-        elif self.sensor_type == 0x10 and self.event_offset == 0x06:
-            return ', todo'
-        elif self.sensor_type == 0x19 and self.event_offset == 0x00:
-            return ', todo'
-        elif self.sensor_type == 0x1D and self.event_offset == 0x07:
-            return ', todo'
-        elif self.sensor_type == 0x21 and self.event_offset == 0x09:
-            return ', todo'
-        elif self.sensor_type == 0x28 and self.event_offset == 0x05:
-            return ', todo'
-        elif self.sensor_type == 0x2A and self.event_offset == 0x03:
-            return ', todo'
+                raise ValueError('reserved error type 0x%02X'% error_type)
+        elif sensor_type == 0x0C and event_offset == 0x08:
+            return ', memory module 0x%02X' % event_data_3
+        elif sensor_type == 0x10 and event_offset == 0x01:
+            return '' # has been processed along with event_data_2
+        elif sensor_type == 0x10 and event_offset == 0x05:
+            if (event_data_3 & 0x80) >> 7:
+                return ' (vendor-specific)'
+            else:
+                return '' # has been processed along with event_data_2
+        elif sensor_type == 0x10 and event_offset == 0x06:
+            return '' # has been processed along with event_data_2
+        elif sensor_type == 0x19 and event_offset == 0x00:
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_3_MESSAGE['#19#00']
+            return ', requested power state: ' + messages[event_data_3]
+        elif sensor_type == 0x1D and event_offset == 0x07:
+            return ', from channel %d' % event_data_3
+        elif sensor_type == 0x21 and event_offset == 0x09:
+            return ' %d' % event_data_3
+        elif sensor_type == 0x28 and event_offset == 0x05:
+            if (event_data_2 & 0x80) >> 7:
+                return ', FRU device ID 0x%02X' % event_data_3
+            else:
+                slave_address = event_data_3 & 0xFE
+                return ', slave address 0x%02X' % slave_address
+        elif sensor_type == 0x2A:
+            cause_index = (event_data_3 & 0x30) >> 4
+            messages = cls.SENSOR_SPECIFIC_EVENT_DATA_3_MESSAGE['#2A:3:0']
+            channel = event_data_3 & 0x0F
+            return ', %s, channel %s' % (
+                messages[cause_index],
+                cls.OEM_CHANNEL_NAMES[channel])
         return ''
-    # pylint: enable=too-many-branches
+    # pylint: enable=unused-argument
     # pylint: enable=too-many-return-statements
+    # pylint: enable=too-many-branches
+    # pylint: enable=too-many-arguments
     # pylint: enable=invalid-name
 
     # pylint: disable=invalid-name
-    def _stringify_discrete_event_data_3(self):
-        if self.event_data_3_usage == 0b00:
-            return ''
-        elif self.event_data_3_usage == 0b01:
-            # FIXME raise ValueError
-            return ('reserved event data 3 usage 0b01 (sensor 0x%02X, event '
-                    'type 0x%02X)' % (
-                        self.sensor_number, self.event_type))
-            # raise ValueError(
-            #     'reserved event data 3 usage 0b01 (sensor 0x%02X, event type '
-            #     '0x%02X)' % (
-            #         self.sensor_number, self.event_type))
-        elif self.event_data_3_usage == 0b10:
-            return ', OEM event data 3 0x%02X' % self.event_data_3
-        else:
-            if self.event_type == 0x6F:
-                return self._stringify_sensor_specific_event_data_3()
-            else:
-                return (', sensor-specific event extension code 0x%02X '
-                        'from event data 3' % self.event_data_3)
+    @classmethod
+    def _stringify_sensor_specific_event_name(cls, sensor_type, event_offset):
+        assert 0x00 <= sensor_type <= 0xFF
+        if 0x00 <= sensor_type <= 0x2C:
+            event_names = cls.SENSOR_SPECIFIC_EVENT_NAMES[sensor_type]
+        elif 0x2D <= sensor_type <= 0xBF:
+            raise ValueError('reserved sensor type 0x%02X' % sensor_type)
+        elif 0xC0 <= sensor_type <= 0xFF:
+            offset = sensor_type - 0xC0
+            event_names = cls.OEM_SENSOR_SPECIFIC_EVENT_NAMES[offset]
+        return event_names[event_offset]
     # pylint: enable=invalid-name
 
-    def _stringify_oem_event_data_2(self):
-        if self.event_data_2_usage == 0b00:
+    @classmethod
+    def _stringify_sensor_type(cls, sensor_type):
+        if 0x01 <= sensor_type <= 0x2C:
+            return cls.SENSOR_TYPE_NAMES[sensor_type]
+        elif 0xC0 <= sensor_type <= 0xFF:
+            offset = sensor_type - 0xC0
+            return cls.OEM_SENSOR_TYPE_NAMES[offset]
+        else:
+            raise ValueError('sensor type 0x%02X is reserved' % sensor_type)
+
+    # pylint: disable=invalid-name
+    @classmethod
+    def _stringify_threshold_event_data_2(cls,
+                                          event_data_1,
+                                          event_data_2):
+        event_data_2_usage = cls._get_event_data_2_usage(event_data_1)
+        if event_data_2_usage == 0b00:
             return ''
-        elif self.event_data_2_usage == 0b01:
-            return ', previous state 0x%02X' % self.event_data_2
-        elif self.event_data_2_usage == 0b10:
-            return ', OEM event data 2 0x%02X' % self.event_data_2
+        elif event_data_2_usage == 0b01:
+            # TODO parse reading with SDR
+            return ', trigger reading 0x%02X' % event_data_2
+        elif event_data_2_usage == 0b10:
+            return ', OEM event data 2 0x%02X' % event_data_2
         else:
-            # FIXME raise ValueError
-            return ('reserved event data 3 usage 0b11 (sensor 0x%02X, event '
-                    'type 0x%02X)' % (
-                        self.sensor_number, self.event_type))
-            # raise ValueError(
-            #     'reserved event data 3 usage 0b11 (sensor 0x%02X, event type '
-            #     '0x%02X)' % (
-            #         self.sensor_number, self.event_type))
+            return (', sensor-specific event extension code 0x%02X '
+                    'from event data 2' % event_data_2)
+    # pylint: enable=invalid-name
 
-    def _stringify_oem_event_data_3(self):
-        if self.event_data_3_usage == 0b00:
+    # pylint: disable=invalid-name
+    @classmethod
+    def _stringify_threshold_event_data_3(cls,
+                                          event_data_1,
+                                          event_data_3):
+        event_data_3_usage = cls._get_event_data_3_usage(event_data_1)
+        if event_data_3_usage == 0b00:
             return ''
-        elif self.event_data_3_usage == 0b01:
-            # FIXME raise ValueError
-            return ('reserved event data 3 usage 0b01 (sensor 0x%02X, event '
-                    'type 0x%02X)' % (
-                        self.sensor_number, self.event_type))
-            # raise ValueError(
-            #     'reserved event data 3 usage 0b01 (sensor 0x%02X, event type '
-            #     '0x%02X)' % (
-            #         self.sensor_number, self.event_type))
-        elif self.event_data_3_usage == 0b10:
-            return ', OEM event data 2 0x%02X' % self.event_data_2
+        elif event_data_3_usage == 0b01:
+            # TODO parse threshold with SDR
+            return ', threshold 0x%02X' % event_data_3
+        elif event_data_3_usage == 0b10:
+            return ', OEM event data 3 0x%02X' % event_data_3
         else:
-            # FIXME raise ValueError
-            return ('reserved event data 3 usage 0b11 (sensor 0x%02X, event '
-                    'type 0x%02X)' % (
-                        self.sensor_number, self.event_type))
-            # raise ValueError(
-            #     'reserved event data 3 usage 0b11 (sensor 0x%02X, event type '
-            #     '0x%02X)' % (
-            #         self.sensor_number, self.event_type))
+            return (', sensor-specific event extension code 0x%02X '
+                    'from event data 3' % event_data_3)
+    # pylint: enable=invalid-name
 
-    def _stringify_event_data(self):
-        if self.event_type == 0x00:
-            # FIXME raise ValueError
-            return 'reserved event type 0x00 (sensor 0x%02X)' % (
-                self.sensor_number)
-            # raise ValueError(
-            #     'reserved event type 0x00 (sensor 0x%02X)' % (
-            #         self.sensor_number))
-        elif self.event_type == 0x01:
-            return (self._stringify_threshold_event_data_2() +
-                    self._stringify_threshold_event_data_3())
-        elif 0x02 <= self.event_type <= 0x0C:
-            return (self._stringify_discrete_event_data_2() +
-                    self._stringify_discrete_event_data_3())
-        elif 0x0D <= self.event_type <= 0x6E:
-            # FIXME raise ValueError
-            return 'reserved event type 0x%02X (sensor 0x%02X)' % (
-                self.event_type, self.sensor_number)
-            # raise ValueError(
-            #     'reserved event type 0x%02X (sensor 0x%02X)' % (
-            #         self.event_type, self.sensor_number))
-        elif self.event_type == 0x6F:
-            return (self._stringify_discrete_event_data_2() +
-                    self._stringify_discrete_event_data_3())
-        elif 0x70 <= self.event_type <= 0x7F:
-            return (self._stringify_oem_event_data_2() +
-                    self._stringify_oem_event_data_3())
-        else:
-            # FIXME raise ValueError
-            return 'invalid event type %d (sensor 0x%02X)' % (
-                self.event_type, self.sensor_number)
-            # raise ValueError(
-            #     'invalid event type %d (sensor 0x%02X)' % (
-            #         self.event_type, self.sensor_number))
+    # pylint: disable=invalid-name
+    @classmethod
+    def _stringify_threshold_or_generic_event_name(cls,
+                                                   event_type,
+                                                   event_offset):
+        event_names = cls.THRESHOLD_OR_GENERIC_EVENT_NAMES[event_type]
+        return event_names[event_offset]
+    # pylint: enable=invalid-name
 
-    def assemble_message(self):
-        # TODO add sensor name to message
-        return 'Sensor (0x%02X) %s event %s%s' % (
-            self.sensor_number,
-            'deasserted' if self.event_dir else 'asserted',
-            self._stringify_event_name(self.event_offset),
-            self._stringify_event_data())
-# pylint: enable=too-few-public-methods
+    # pylint: disable=invalid-name
+    # pylint: disable=unused-argument
+    # pylint: disable=too-many-arguments
+    @classmethod
+    def _virtual_stringify_oem_discrete_event_data_2(cls,
+                                                     sensor_type,
+                                                     event_type,
+                                                     event_data_1,
+                                                     event_data_2,
+                                                     event_data_3):
+        return ', OEM event data 2 0x%02X' % event_data_2
+    # pylint: enable=too-many-arguments
+    # pylint: enable=unused-argument
+    # pylint: enable=invalid-name
+
+    # pylint: disable=invalid-name
+    # pylint: disable=unused-argument
+    # pylint: disable=too-many-arguments
+    @classmethod
+    def _virtual_stringify_oem_discrete_event_data_3(cls,
+                                                     sensor_type,
+                                                     event_type,
+                                                     event_data_1,
+                                                     event_data_2,
+                                                     event_data_3):
+        return ', OEM event data 3 0x%02X' % event_data_3
+    # pylint: enable=too-many-arguments
+    # pylint: enable=unused-argument
+    # pylint: enable=invalid-name
+
+    # pylint: disable=invalid-name
+    # pylint: disable=unused-argument
+    @classmethod
+    def _virtual_stringify_oem_event_data_2(cls,
+                                            event_type,
+                                            event_data_1,
+                                            event_data_2,
+                                            event_data_3):
+        return ', OEM event data 2 0x%02X' % event_data_2
+    # pylint: enable=unused-argument
+    # pylint: enable=invalid-name
+
+    # pylint: disable=invalid-name
+    # pylint: disable=unused-argument
+    @classmethod
+    def _virtual_stringify_oem_event_data_3(cls,
+                                            event_type,
+                                            event_data_1,
+                                            event_data_2,
+                                            event_data_3):
+        return ', OEM event data 3 0x%02X' % event_data_3
+    # pylint: enable=unused-argument
+    # pylint: enable=invalid-name
+
+    # pylint: disable=too-many-arguments
+    @classmethod
+    def from_binary(cls,
+                    severity,
+                    sensor_type,
+                    sensor_number,
+                    event_dir_type,
+                    event_data_1,
+                    event_data_2=0xFF,
+                    event_data_3=0xFF):
+        event = cls()
+        valid_severities = (cls.SEVERITY_CRIT,
+                            cls.SEVERITY_INFO,
+                            cls.SEVERITY_OKAY,
+                            cls.SEVERITY_WARN)
+        assert severity in valid_severities
+        event.severity = severity
+        event.entry_type = 'Entry Type' # FIXME entry type
+        event.entry_code = 'Entry Code' # FIXME entry code
+        assert 0 <= sensor_type <= 255
+        event.sensor_type = cls._stringify_sensor_type(sensor_type)
+        assert 0 <= sensor_number <= 255
+        event.sensor_number = '0x%02X' % sensor_number
+        assert 0 <= event_dir_type <= 255
+        assert 0 <= event_data_1 <= 255
+        event.event_data_1 = '0x%02X' % event_data_1
+        assert 0 <= event_data_2 <= 255
+        event.event_data_2 = '0x%02X' % event_data_2
+        assert 0 <= event_data_3 <= 255
+        event.event_data_3 = '0x%02X' % event_data_3
+        event.message = cls._assemble_message(sensor_number,
+                                              sensor_type,
+                                              event_dir_type,
+                                              event_data_1,
+                                              event_data_2,
+                                              event_data_3)
+        assert len(event.message) < 256
+        return event
+    # pylint: enable=too-many-arguments
+
+    @classmethod
+    def from_file(cls, filepath, timestamp):
+        event = cls()
+        event.logical_timestamp = timestamp
+        with open(filepath) as event_file:
+            next_line = lambda: event_file.readline().strip()
+            event.log_id = next_line()
+            event.name = next_line()
+            event.record_id = next_line()
+            event.severity = next_line()
+            event.created = next_line()
+            event.entry_type = next_line()
+            event.entry_code = next_line()
+            event.sensor_type = next_line()
+            event.sensor_number = next_line()
+            event.message = next_line()
+            event.event_data_1 = next_line()
+            event.event_data_2 = next_line()
+            event.event_data_3 = next_line()
+        return event
 # pylint: enable=too-many-instance-attributes
+
+class Event(BaseEvent):
+    OEM_CHANNEL_NAMES = (
+        None,
+        'Redfish',
+        'SSH',
+    )
+    OEM_USER_NAMES = (
+        None,
+        'admin',
+    )
+    OEM_CHASSIS_ENTITIES = ()
+    OEM_BOARDSET_ENTITIES = ()
+    OEM_ENTITIES = ()
+    OEM_SENSOR_TYPE_NAMES = (
+        'System Throttle',
+    )
+    OEM_EVENT_NAMES = ((
+        # 0x70 BMC Health
+        'BMC Service Restarted',
+        'Network Error',
+        'Firmware Boot SPI Flash',
+        'Hardware Watchdog Expired',
+        'Empty FRU',
+        'Alignment Traps',
+        'BMC CPU Utilization',
+        'BMC Memory Utilization',
+        'BMC Reset',
+        'DRAM ECC Errors',
+        'I2C Bus Recovery',
+        'Log Rollover',
+        'No MAC Address Programmed Or Checksum Error In EEPROM',
+        'Firmware Update Started',
+        'Firmware Update Completed',
+    ), (
+        # 0x71 NTP Status
+        None,
+        'Sync Time from NTP',
+        None,
+        'NTP Server Sync Failed',
+    ), (
+        # 0x72 System Event
+        'Power On',
+        'Power Off',
+    ))
+    OEM_SENSOR_SPECIFIC_EVENT_NAMES = ()
+    OEM_EVENT_DATA_2_MESSAGE = {}
+    OEM_EVENT_DATA_3_MESSAGE = {}
+    OEM_DISCRETE_EVENT_DATA_2_MESSAGE = {}
+    OEM_DISCRETE_EVENT_DATA_3_MESSAGE = {}
+
+    # pylint: disable=invalid-name
+    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-branches
+    # pylint: disable=unused-argument
+    @classmethod
+    def _virtual_stringify_oem_discrete_event_data_2(cls,
+                                                     sensor_type,
+                                                     event_type,
+                                                     event_data_1,
+                                                     event_data_2,
+                                                     event_data_3):
+        if sensor_type == 0x08:
+            events = []
+            status_word_high = event_data_2
+            if status_word_high & 0x04:
+                events.append('FANS')
+            if status_word_high & 0x08:
+                events.append('POWER_GOOD#')
+            if status_word_high & 0x20:
+                events.append('INPUT')
+            if status_word_high & 0x40:
+                events.append('IOUT/POUT')
+            if status_word_high & 0x80:
+                events.append('VOUT')
+            status_word_low = event_data_3
+            if status_word_low & 0x02:
+                events.append('CML')
+            if status_word_low & 0x04:
+                events.append('temperature')
+            if status_word_low & 0x08:
+                events.append('VIN_UV_FAULT')
+            if status_word_low & 0x10:
+                events.append('IOUT_OC_FAULT')
+            if status_word_low & 0x20:
+                events.append('VOUT_OV_FAULT')
+            if status_word_low & 0x40:
+                events.append('OFF')
+            if events:
+                return ', PSU events: (%s)' % ', '.join(events)
+            else:
+                return ''
+        elif sensor_type == 0x25:
+            entity_id = event_data_2
+            if 0x00 <= entity_id <= 0x42:
+                entity = cls.ENTITIES[entity_id]
+            elif 0x43 <= entity_id <= 0x8F:
+                raise ValueError('unsupported entity ID %d' % entity_id)
+            elif 0x90 <= entity_id <= 0xAF:
+                entity = cls.OEM_CHASSIS_ENTITIES[entity_id - 0x90]
+            elif 0xB0 <= entity_id <= 0xCF:
+                entity = cls.OEM_CHASSIS_ENTITIES[entity_id - 0xB0]
+            elif 0xD0 <= entity_id <= 0xFF:
+                entity = cls.OEM_CHASSIS_ENTITIES[entity_id - 0xD0]
+            return ', %s' % entity
+        elif sensor_type == 0xC0:
+            power_consumption = (event_data_2 << 8) | event_data_3
+            return ', aggregated power consumption %d' % power_consumption
+        else:
+            raise ValueError('unsupported sensor type 0x%02X' % sensor_type)
+    # pylint: enable=unused-argument
+    # pylint: enable=too-many-branches
+    # pylint: enable=too-many-arguments
+    # pylint: enable=invalid-name
+
+    # pylint: disable=invalid-name
+    # pylint: disable=too-many-arguments
+    # pylint: disable=unused-argument
+    @classmethod
+    def _virtual_stringify_oem_discrete_event_data_3(cls,
+                                                     sensor_type,
+                                                     event_type,
+                                                     event_data_1,
+                                                     event_data_2,
+                                                     event_data_3):
+        if sensor_type == 0x08:
+            return ''
+        elif sensor_type == 0x25:
+            entity_instance = event_data_3
+            return ' %d' % entity_instance
+        elif sensor_type == 0xC0:
+            return ''
+        else:
+            raise ValueError('unsupported event type 0x%03X' % event_type)
+    # pylint: enable=unused-argument
+    # pylint: enable=too-many-arguments
+    # pylint: enable=invalid-name
+
+    # pylint: disable=invalid-name
+    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-return-statements
+    @classmethod
+    def _virtual_stringify_oem_event_data_2(cls,
+                                            event_type,
+                                            event_data_1,
+                                            event_data_2,
+                                            event_data_3):
+        event_offset = cls._get_event_offset(event_data_1)
+        if event_type == 0x70:
+            if event_offset == 0x00:
+                return ', service ID %d' % event_data_2
+            elif event_offset == 0x01:
+                if event_data_2 == 0x01:
+                    return ', link down'
+                elif event_data_2 == 0x02:
+                    return ', link failure'
+                else:
+                    raise ValueError('unsupported link status 0x%02X' %
+                                     event_data_2)
+            elif event_offset == 0x02:
+                if event_data_2 == 0x01:
+                    return ', primary SPI'
+                elif event_data_2 == 0x02:
+                    return ', secondary SPI'
+                else:
+                    raise ValueError('unsupported SPI ID 0x%02X' % event_data_2)
+            elif event_offset == 0x03:
+                return ''
+            elif event_offset == 0x04:
+                return ', FRU %d' % event_data_2
+            elif event_offset == 0x05:
+                num_traps = (event_data_2 << 8) | event_data_3
+                return ', %d times' % num_traps
+            elif event_offset == 0x06:
+                utilization = event_data_2
+                return ', %d%%' % utilization
+            elif event_offset == 0x07:
+                memory_usage = event_data_2
+                return ', %d MB' % memory_usage
+            elif event_offset == 0x08:
+                if event_data_2 == 0x01:
+                    return ', register / pin reset'
+                elif event_data_2 == 0x02:
+                    return ', redfish reset'
+                else:
+                    raise ValueError('unsupported restart type 0x%02X' %
+                                     event_data_2)
+            elif event_offset == 0x09:
+                # TODO implement this when specification is updated
+                return ''
+            elif event_offset == 0x0A:
+                bus = event_data_2
+                return ', bus %d' % bus
+            elif event_offset == 0x0B:
+                rollover_times = event_data_2
+                return ', %d times' % rollover_times
+            elif event_offset == 0x0C:
+                return ''
+            elif event_offset == 0x0D:
+                if event_data_2 == 0x01:
+                    return ', component = BMC'
+                elif event_data_2 == 0x02:
+                    return ', component = PSU'
+                elif event_data_2 == 0x03:
+                    return ', component = FPGA'
+                else:
+                    raise ValueError('unsupported component 0x%02X' %
+                                     event_data_2)
+            elif event_offset == 0x0E:
+                if event_data_2 == 0x01:
+                    return ', component = BMC'
+                elif event_data_2 == 0x02:
+                    return ', component = PSU'
+                elif event_data_2 == 0x03:
+                    return ', component = FPGA'
+                else:
+                    raise ValueError('unsupported component 0x%02X' %
+                                     event_data_2)
+            else:
+                raise ValueError('unsupported event offset 0x%02X' %
+                                 event_offset)
+        else:
+            raise ValueError('unsupported event type 0x%02X' % event_type)
+    # pylint: enable=too-many-return-statements
+    # pylint: enable=too-many-branches
+    # pylint: enable=invalid-name
+
+    # pylint: disable=invalid-name
+    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-return-statements
+    @classmethod
+    def _virtual_stringify_oem_event_data_3(cls,
+                                            event_type,
+                                            event_data_1,
+                                            event_data_2,
+                                            event_data_3):
+        event_offset = cls._get_event_offset(event_data_1)
+        if event_type == 0x70:
+            if event_offset == 0x00:
+                return ''
+            elif event_offset == 0x01:
+                return ''
+            elif event_offset == 0x02:
+                return ''
+            elif event_offset == 0x03:
+                return ''
+            elif event_offset == 0x04:
+                return ''
+            elif event_offset == 0x05:
+                return ''
+            elif event_offset == 0x06:
+                return ''
+            elif event_offset == 0x07:
+                return ''
+            elif event_offset == 0x08:
+                return ''
+            elif event_offset == 0x09:
+                return ''
+            elif event_offset == 0x0A:
+                error_code = event_data_3
+                return ', error code %d' % error_code
+            elif event_offset == 0x0B:
+                return ''
+            elif event_offset == 0x0C:
+                return ''
+            elif event_offset == 0x0D:
+                if event_data_2 == 0x01:
+                    if event_data_3 == 0x00:
+                        return ', primary'
+                    elif event_data_3 == 0x01:
+                        return ', secondary'
+                    else:
+                        raise ValueError('unsupported BMC priority 0x%02X' %
+                                         event_data_3)
+                elif event_data_2 == 0x02:
+                    return ', PSU %d' % event_data_3
+                elif event_data_2 == 0x03:
+                    return ', GPU %d' % event_data_3
+                else:
+                    raise ValueError('unknown event data 2 0x%02X' %
+                                     event_data_2)
+            elif event_offset == 0x0E:
+                if event_data_2 == 0x01:
+                    if event_data_3 == 0x00:
+                        return ', primary'
+                    elif event_data_3 == 0x01:
+                        return ', secondary'
+                    else:
+                        raise ValueError('unsupported BMC priority 0x%02X' %
+                                         event_data_3)
+                elif event_data_2 == 0x02:
+                    return ', PSU %d' % event_data_3
+                elif event_data_2 == 0x03:
+                    return ', GPU %d' % event_data_3
+                else:
+                    raise ValueError('unknown event data 2 0x%02X' %
+                                     event_data_2)
+            else:
+                raise ValueError('unsupported event offset 0x%02X' %
+                                 event_offset)
+        else:
+            raise ValueError('unsupported event type 0x%02X' % event_type)
+    # pylint: enable=too-many-return-statements
+    # pylint: enable=too-many-branches
+    # pylint: enable=invalid-name
 
 class EventManager(object):
     SERVICE_NAME = 'org.openbmc.records.events'
-    LOCK_PATH = '/var/lib/obmc/events/lock'
-    LOGS_PATH = '/var/lib/obmc/events/logs'
-    LOG_FOLDER = '/var/lib/obmc/events'
+    LOCK_PATH = '/var/lib/obmc/events.lock'
+    LOG_DIR_PATH = '/var/lib/obmc/events'
+    SNAPSHOT_PATH = '/var/wcs/home/log-snapshot.zip'
 
     def __init__(self):
         self._bus = dbus.SystemBus()
@@ -1042,69 +1648,80 @@ class EventManager(object):
             self.SERVICE_NAME,
             '/org/openbmc/records/events')
 
-    def _get_event_object(self, logid):
-        object_path = '/org/openbmc/records/events/%d' % logid
-        return self._bus.get_object(self.SERVICE_NAME, object_path)
-
-    def add_log(self, log):
-        '''
-        Add log, modify and return its logid.
-        If succeeds, a log ID between 1 and 65535 is returned.
-        If fails, 0 is returned.
-        '''
-        log.logid = self._events.acceptBMCMessage(
-            log.severity,
-            log.sensor_type,
-            log.sensor_number,
-            log.event_dir_type,
-            log.event_data_1,
-            log.event_data_2,
-            log.event_data_3,
-            dbus_interface='org.openbmc.recordlog')
-        return log.logid
-
-    def get_log(self, logid):
-        '''
-        Get a log by ID.
-        If event doesn't exist, None is returned.
-
-        NOTE: instead of communicate with DBus, this function reads log from
-        file system for the sake of performance.
-        '''
-        try:
-            with open(self.LOCK_PATH) as lock_file:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-                with open(self.LOGS_PATH) as logs_file:
-                    logs_file.seek(self.log_position(logid))
-                    content = logs_file.read(Event.SIZE)
-                    event = Event.load(content)
-                    return event if event.logid == logid else None
-        except StandardError:
-            return None
-
-    def get_log_ids(self):
-        '''
-        Return a tuple of log IDs ordered by timestamp.
-        '''
-        logids = self._events.getAllLogIds(
-            dbus_interface='org.openbmc.recordlog')
-        return tuple(int(x) for x in logids)
-
-    @staticmethod
-    def log_position(logid):
-        return Event.SIZE * (logid - 1)
-
-    def remove_all_logs(self, sensor_number):
-        '''
-        Remove all logs.
-        sensor_number is the sensor number of SEL device.
-        '''
-        return self._events.clear(
+    def clear(self, sensor_number):
+        record_id = self._events.clear(
             sensor_number,
             dbus_interface='org.openbmc.recordlog')
+        return record_id
 
-    def remove_log(self, logid):
-        '''
-        Remove a log by ID.
-        '''
-        self._events.delete(logid, dbus_interface='org.openbmc.recordlog')
+    def create(self, event):
+        assert isinstance(event.severity, str)
+        assert isinstance(event.entry_type, str)
+        assert isinstance(event.entry_code, str)
+        assert isinstance(event.sensor_type, str)
+        assert isinstance(event.sensor_number, str)
+        assert isinstance(event.message, str)
+        assert isinstance(event.event_data_1, str)
+        assert isinstance(event.event_data_2, str)
+        assert isinstance(event.event_data_3, str)
+        record_id = self._events.create(
+            event.severity,
+            event.entry_type,
+            event.entry_code,
+            event.sensor_type,
+            event.sensor_number,
+            event.message,
+            event.event_data_1,
+            event.event_data_2,
+            event.event_data_3,
+            dbus_interface='org.openbmc.recordlog')
+        return record_id
+
+    def load_event(self, log_id):
+        assert isinstance(log_id, str)
+        with open(self.LOCK_PATH) as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            event_timestamp = None
+            record_ids, timestamps = self.record_ids_and_logical_timestamps()
+            for record_id, timestamp in zip(record_ids, timestamps):
+                if record_id == int(log_id):
+                    event_timestamp = timestamp
+                    break
+            if event_timestamp is None:
+                raise RuntimeError('failed to locate event %d' % log_id)
+            event_path = os.path.join(self.LOG_DIR_PATH, str(event_timestamp))
+            event = Event.from_file(event_path, event_timestamp)
+            return event
+
+    def load_events(self):
+        events = []
+        with open(self.LOCK_PATH) as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            _, timestamps = self.record_ids_and_logical_timestamps()
+            for timestamp in timestamps:
+                event_path = os.path.join(self.LOG_DIR_PATH, str(timestamp))
+                event = Event.from_file(event_path, timestamp)
+                events.append(event)
+        return events
+
+    # pylint: disable=invalid-name
+    def record_ids_and_logical_timestamps(self):
+        record_ids, timestamps = \
+            self._events.get_record_ids_and_logical_timestamps(
+                dbus_interface='org.openbmc.recordlog')
+        return record_ids, timestamps
+    # pylint: enable=invalid-name
+
+    def rollover_count(self):
+        rollover_count = self._events.get_rollover_count(
+            dbus_interface='org.openbmc.recordlog')
+        return rollover_count
+
+    def snapshot(self):
+        with open(self.LOCK_PATH) as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            _, timestamps = self.record_ids_and_logical_timestamps()
+            with zipfile.ZipFile(self.SNAPSHOT_PATH, 'w') as zip_file:
+                for timestamp in timestamps:
+                    event_path = os.path.join(self.LOG_DIR_PATH, str(timestamp))
+                    zip_file.write(event_path, str(timestamp))
