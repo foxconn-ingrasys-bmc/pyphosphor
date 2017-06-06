@@ -180,7 +180,8 @@ class HwmonSensor(SensorValue, SensorThresholds):
             val = int(value/scale + offset)
             if (val != self.value):
                 SensorValue.setValue(self, val)
-                self.check_thresholds(val)
+                if (value != -1):
+                    self.check_thresholds(val)
                 self.value = val
 
             return [False, 0]
