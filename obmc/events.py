@@ -722,6 +722,18 @@ class BaseEvent(object):
         self.event_data_1 = None
         self.event_data_2 = None
         self.event_data_3 = None
+        self.raw_data = None
+
+    # pylint: disable=too-many-arguments
+    @classmethod
+    def _assemble_entry_code(cls,
+                             sensor_type,
+                             event_dir_type,
+                             event_data_1):
+        event_type = cls._get_event_type(event_dir_type)
+        event_offset = cls._get_event_offset(event_data_1)
+        return cls._stringify_event_name(sensor_type, event_type, event_offset)
+    # pylint: enable=too-many-arguments
 
     # pylint: disable=too-many-arguments
     @classmethod
@@ -1286,8 +1298,7 @@ class BaseEvent(object):
                             cls.SEVERITY_WARN)
         assert severity in valid_severities
         event.severity = severity
-        event.entry_type = 'Entry Type' # FIXME entry type
-        event.entry_code = 'Entry Code' # FIXME entry code
+        event.entry_type = 'SEL' # XXX may change in future spec
         assert 0 <= sensor_type <= 255
         event.sensor_type = cls._stringify_sensor_type(sensor_type)
         assert 0 <= sensor_number <= 255
@@ -1299,6 +1310,9 @@ class BaseEvent(object):
         event.event_data_2 = '0x%02X' % event_data_2
         assert 0 <= event_data_3 <= 255
         event.event_data_3 = '0x%02X' % event_data_3
+        event.entry_code = cls._assemble_entry_code(sensor_type,
+                                                    event_dir_type,
+                                                    event_data_1)
         event.message = cls._assemble_message(sensor_number,
                                               sensor_type,
                                               event_dir_type,
@@ -1306,6 +1320,14 @@ class BaseEvent(object):
                                               event_data_2,
                                               event_data_3)
         assert len(event.message) < 256
+        event.raw_data = '0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X' % (
+            sensor_type,
+            sensor_number,
+            event_dir_type,
+            event_data_1,
+            event_data_2,
+            event_data_3)
+        assert len(event.raw_data) == 29
         return event
     # pylint: enable=too-many-arguments
 
@@ -1325,9 +1347,7 @@ class BaseEvent(object):
             event.sensor_type = next_line()
             event.sensor_number = next_line()
             event.message = next_line()
-            event.event_data_1 = next_line()
-            event.event_data_2 = next_line()
-            event.event_data_3 = next_line()
+            event.raw_data = next_line()
         return event
 # pylint: enable=too-many-instance-attributes
 
@@ -1661,9 +1681,7 @@ class EventManager(object):
         assert isinstance(event.sensor_type, str)
         assert isinstance(event.sensor_number, str)
         assert isinstance(event.message, str)
-        assert isinstance(event.event_data_1, str)
-        assert isinstance(event.event_data_2, str)
-        assert isinstance(event.event_data_3, str)
+        assert isinstance(event.raw_data, str)
         record_id = self._events.create(
             event.severity,
             event.entry_type,
@@ -1671,9 +1689,7 @@ class EventManager(object):
             event.sensor_type,
             event.sensor_number,
             event.message,
-            event.event_data_1,
-            event.event_data_2,
-            event.event_data_3,
+            event.raw_data,
             dbus_interface='org.openbmc.recordlog')
         return record_id
 
