@@ -8,6 +8,8 @@ import fcntl
 import os.path
 import zipfile
 
+from obmc.sensor_data_record_pool import SDRS
+
 # pylint: disable=too-many-instance-attributes
 class BaseEvent(object):
     SEVERITY_CRIT = 'Critical'
@@ -747,13 +749,13 @@ class BaseEvent(object):
         event_dir = cls._get_event_dir(event_dir_type)
         event_type = cls._get_event_type(event_dir_type)
         event_offset = cls._get_event_offset(event_data_1)
-        # TODO replace sensor_type with sensor_name (need SDR)
-        return '%s sensor 0x%02X %s %s%s' % (
-            cls._stringify_sensor_type(sensor_type),
-            sensor_number,
+        sdr = SDRS.get_by_sensor_number(sensor_number)
+        return '%s %s %s%s' % (
+            sdr.sensor_name,
             'deasserted' if event_dir else 'asserted',
             cls._stringify_event_name(sensor_type, event_type, event_offset),
-            cls._stringify_event_data(sensor_type,
+            cls._stringify_event_data(sdr,
+                                      sensor_type,
                                       event_type,
                                       event_data_1,
                                       event_data_2,
@@ -863,6 +865,7 @@ class BaseEvent(object):
     # pylint: disable=too-many-arguments
     @classmethod
     def _stringify_event_data(cls,
+                              sdr,
                               sensor_type,
                               event_type,
                               event_data_1,
@@ -872,9 +875,11 @@ class BaseEvent(object):
         if event_type == 0x00:
             raise ValueError('reserved event type 0x00')
         elif event_type == 0x01:
-            return (cls._stringify_threshold_event_data_2(event_data_1,
+            return (cls._stringify_threshold_event_data_2(sdr,
+                                                          event_data_1,
                                                           event_data_2) +
-                    cls._stringify_threshold_event_data_3(event_data_1,
+                    cls._stringify_threshold_event_data_3(sdr,
+                                                          event_data_1,
                                                           event_data_3))
         elif 0x02 <= event_type <= 0x0C:
             return (cls._stringify_discrete_event_data_2(sensor_type,
@@ -1185,14 +1190,18 @@ class BaseEvent(object):
     # pylint: disable=invalid-name
     @classmethod
     def _stringify_threshold_event_data_2(cls,
+                                          sdr,
                                           event_data_1,
                                           event_data_2):
         event_data_2_usage = cls._get_event_data_2_usage(event_data_1)
         if event_data_2_usage == 0b00:
             return ''
         elif event_data_2_usage == 0b01:
-            # TODO parse reading with SDR
-            return ', trigger reading 0x%02X' % event_data_2
+            raw_reading = sdr.decompress_unit_reading(event_data_2)
+            message = ', trigger reading %.1f' % raw_reading
+            if sdr.unit_name is not None:
+                message = '%s %s' % (message, sdr.unit_name)
+            return message
         elif event_data_2_usage == 0b10:
             return ', OEM event data 2 0x%02X' % event_data_2
         else:
@@ -1203,14 +1212,18 @@ class BaseEvent(object):
     # pylint: disable=invalid-name
     @classmethod
     def _stringify_threshold_event_data_3(cls,
+                                          sdr,
                                           event_data_1,
                                           event_data_3):
         event_data_3_usage = cls._get_event_data_3_usage(event_data_1)
         if event_data_3_usage == 0b00:
             return ''
         elif event_data_3_usage == 0b01:
-            # TODO parse threshold with SDR
-            return ', threshold 0x%02X' % event_data_3
+            threshold = sdr.decompress_unit_reading(event_data_3)
+            message = ', threshold reading %.1f' % threshold
+            if sdr.unit_name is not None:
+                message = '%s %s' % (message, sdr.unit_name)
+            return message
         elif event_data_3_usage == 0b10:
             return ', OEM event data 3 0x%02X' % event_data_3
         else:
