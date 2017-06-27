@@ -75,6 +75,14 @@ class SensorThresholds(DbusProperties):
             'N/A')
         self.Set(
             SensorThresholds.IFACE_NAME,
+            'positive_hysteresis',
+            -1)
+        self.Set(
+            SensorThresholds.IFACE_NAME,
+            'negative_hysteresis',
+            -1)
+        self.Set(
+            SensorThresholds.IFACE_NAME,
             'threshold_state',
             "NORMAL")
         self.Set(
@@ -95,23 +103,45 @@ class SensorThresholds(DbusProperties):
         if (self.Get(iface, 'thresholds_enabled') is False):
             return False
         rtn = False
-        current_state = "NORMAL"
-        if (self.properties[iface]['critical_upper'] != 'N/A') and \
-            (value >= self.properties[iface]['critical_upper']):
-            current_state = "UPPER_CRITICAL"
-            rtn = True
-        elif (self.properties[iface]['critical_lower'] != 'N/A') and \
-            (value <= self.properties[iface]['critical_lower']):
-            current_state = "LOWER_CRITICAL"
-            rtn = True
-        elif (self.properties[iface]['warning_upper'] != 'N/A') and \
-            (value >= self.properties[iface]['warning_upper']):
-            current_state = "UPPER_WARNING"
-            rtn = True
-        elif (self.properties[iface]['warning_lower'] != 'N/A') and \
-            (value <= self.properties[iface]['warning_lower']):
-            current_state = "LOWER_WARNING"
-            rtn = True
+        current_state = self.Get(iface, 'threshold_state')
+        if current_state.find("NORMAL") != -1:
+            if (self.properties[iface]['critical_upper'] != 'N/A') and \
+                (value >= self.properties[iface]['critical_upper']):
+                current_state = "UPPER_CRITICAL"
+                rtn = True
+            elif (self.properties[iface]['critical_lower'] != 'N/A') and \
+                (value <= self.properties[iface]['critical_lower']):
+                current_state = "LOWER_CRITICAL"
+                rtn = True
+            elif (self.properties[iface]['warning_upper'] != 'N/A') and \
+                (value >= self.properties[iface]['warning_upper']):
+                current_state = "UPPER_WARNING"
+                rtn = True
+            elif (self.properties[iface]['warning_lower'] != 'N/A') and \
+                (value <= self.properties[iface]['warning_lower']):
+                current_state = "LOWER_WARNING"
+                rtn = True
+        else:
+            if (self.properties[iface]['critical_upper'] != 'N/A') and \
+                (value <= self.properties[iface]['critical_upper'] -
+                        (self.properties[iface]['positive_hysteresis'] + 1)):
+                current_state = "NORMAL"
+                rtn = True
+            elif (self.properties[iface]['critical_lower'] != 'N/A') and \
+                (value >= self.properties[iface]['critical_lower'] +
+                        (self.properties[iface]['negative_hysteresis'] + 1)):
+                current_state = "NORMAL"
+                rtn = True
+            elif (self.properties[iface]['warning_upper'] != 'N/A') and \
+                (value <= self.properties[iface]['warning_upper'] -
+                        (self.properties[iface]['positive_hysteresis'] + 1)):
+                current_state = "NORMAL"
+                rtn = True
+            elif (self.properties[iface]['warning_lower'] != 'N/A') and \
+                (value >= self.properties[iface]['warning_lower'] +
+                        (self.properties[iface]['negative_hysteresis'] + 1)):
+                current_state = "NORMAL"
+                rtn = True
 
         if self.Get(iface, 'threshold_state') != current_state and \
                 current_state.find("CRITICAL") != -1 and \
