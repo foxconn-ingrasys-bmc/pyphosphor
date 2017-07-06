@@ -782,6 +782,25 @@ class BaseEvent(object):
     def _get_event_type(event_dir_type):
         return event_dir_type & 0x7F
 
+    @staticmethod
+    def _hexlify_event_data(sensor_number, event_data):
+        sdr = SDRS.get_by_sensor_number(sensor_number)
+        if sdr.sensor_unit_1 & 0xC0 == sdr.UNIT_1_UNSIGNED:
+            assert 0 <= event_data <= 255
+            return '0x%02X' % event_data
+        elif sdr.sensor_unit_1 & 0xC0 == sdr.UNIT_1_SIGNED_2_COMPLEMENT:
+            assert -128 <= event_data <= 127
+            return '0x%02X' % (event_data & 0xFF)
+        elif sdr.sensor_unit_1 & 0xC0 == sdr.UNIT_1_SIGNED_1_COMPLEMENT:
+            assert -127 <= event_data <= 127
+            if 0 <= event_data:
+                return '0x%02X' % event_data
+            else:
+                return '0x%02X' % (0x80 | (~(-event_data) & 0x7F))
+        elif sdr.sensor_unit_1 & 0xC0 == sdr.UNIT_1_NOT_ANALOG:
+            assert 0 <= event_data <= 255
+            return '0x%02X' % event_data
+
     # pylint: disable=invalid-name
     # pylint: disable=too-many-arguments
     @classmethod
@@ -1319,10 +1338,10 @@ class BaseEvent(object):
         assert 0 <= event_dir_type <= 255
         assert 0 <= event_data_1 <= 255
         event.event_data_1 = '0x%02X' % event_data_1
-        assert 0 <= event_data_2 <= 255
-        event.event_data_2 = '0x%02X' % event_data_2
-        assert 0 <= event_data_3 <= 255
-        event.event_data_3 = '0x%02X' % event_data_3
+        event.event_data_2 = cls._hexlify_event_data(sensor_number,
+                                                     event_data_2)
+        event.event_data_3 = cls._hexlify_event_data(sensor_number,
+                                                     event_data_3)
         event.entry_code = cls._assemble_entry_code(sensor_type,
                                                     event_dir_type,
                                                     event_data_1)
@@ -1333,13 +1352,13 @@ class BaseEvent(object):
                                               event_data_2,
                                               event_data_3)
         assert len(event.message) < 256
-        event.raw_data = '0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X' % (
+        event.raw_data = '0x%02X 0x%02X 0x%02X %s %s %s' % (
             sensor_type,
             sensor_number,
             event_dir_type,
-            event_data_1,
-            event_data_2,
-            event_data_3)
+            event.event_data_1,
+            event.event_data_2,
+            event.event_data_3)
         assert len(event.raw_data) == 29
         return event
     # pylint: enable=too-many-arguments

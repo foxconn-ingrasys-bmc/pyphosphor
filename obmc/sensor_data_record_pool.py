@@ -465,7 +465,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x6F
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
@@ -490,7 +490,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x71
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
@@ -515,7 +515,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x70
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
@@ -540,7 +540,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x6F
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
@@ -566,7 +566,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x6F
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
@@ -592,7 +592,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x6F
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
@@ -617,7 +617,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x03
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
@@ -642,7 +642,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x6F
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
@@ -667,7 +667,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x72
         sdr.assertion_event_mask = 0
         sdr.deassertion_event_mask = 0
-        sdr.sensor_unit_1 = None
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_NOT_ANALOG
         sdr.sensor_unit_2 = None
         sdr.sensor_unit_3 = None
         sdr.m_factor = None
