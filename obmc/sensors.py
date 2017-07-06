@@ -121,23 +121,26 @@ class SensorThresholds(DbusProperties):
                 (value <= self.properties[iface]['warning_lower']):
                 current_state = "LOWER_WARNING"
                 rtn = True
-        else:
+        elif current_state.find("UPPER_CRITICAL") >= 0:
             if (self.properties[iface]['critical_upper'] != 'N/A') and \
                 (value <= self.properties[iface]['critical_upper'] -
                         (self.properties[iface]['positive_hysteresis'] + 1)):
                 current_state = "NORMAL"
                 rtn = True
-            elif (self.properties[iface]['critical_lower'] != 'N/A') and \
+        elif current_state.find("LOWER_CRITICAL") >= 0:
+            if (self.properties[iface]['critical_lower'] != 'N/A') and \
                 (value >= self.properties[iface]['critical_lower'] +
                         (self.properties[iface]['negative_hysteresis'] + 1)):
                 current_state = "NORMAL"
                 rtn = True
-            elif (self.properties[iface]['warning_upper'] != 'N/A') and \
+        elif current_state.find("UPPER_WARNING") >= 0:
+            if (self.properties[iface]['warning_upper'] != 'N/A') and \
                 (value <= self.properties[iface]['warning_upper'] -
                         (self.properties[iface]['positive_hysteresis'] + 1)):
                 current_state = "NORMAL"
                 rtn = True
-            elif (self.properties[iface]['warning_lower'] != 'N/A') and \
+        elif current_state.find("LOWER_WARNING") >= 0:
+            if (self.properties[iface]['warning_lower'] != 'N/A') and \
                 (value >= self.properties[iface]['warning_lower'] +
                         (self.properties[iface]['negative_hysteresis'] + 1)):
                 current_state = "NORMAL"
