@@ -1537,7 +1537,7 @@ class Event(BaseEvent):
                 if event_data_2 == 0x01:
                     return ', link down'
                 elif event_data_2 == 0x02:
-                    return ', link failure'
+                    return ', DHCP failure'
                 else:
                     raise ValueError('unsupported link status 0x%02X' %
                                      event_data_2)
