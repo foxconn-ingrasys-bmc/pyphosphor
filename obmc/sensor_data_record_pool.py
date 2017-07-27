@@ -131,11 +131,11 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         self._create_ntp_status('NTP Status', 0x81)
         self._create_bmc_health('BMC Health', 0x82)
         self._create_psu_status('PSU1 Status', 0x83)
-        self._create_psu_status('PUS2 Status', 0x84)
-        self._create_psu_status('PUS3 Status', 0x85)
-        self._create_psu_status('PUS4 Status', 0x86)
-        self._create_psu_status('PUS5 Status', 0x87)
-        self._create_psu_status('PUS6 Status', 0x88)
+        self._create_psu_status('PSU2 Status', 0x84)
+        self._create_psu_status('PSU3 Status', 0x85)
+        self._create_psu_status('PSU4 Status', 0x86)
+        self._create_psu_status('PSU5 Status', 0x87)
+        self._create_psu_status('PSU6 Status', 0x88)
         self._create_management_subsystem_health(
             'Management Subsystem Health',
             0x89)
