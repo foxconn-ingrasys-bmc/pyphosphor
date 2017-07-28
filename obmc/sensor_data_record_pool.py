@@ -39,6 +39,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         self._init_gpu_temp_sensors()
         self._init_psu_sensors()
         self._init_discrete_sensors()
+        self._init_plx_switch_sensors()
 
     def _init_inlet_temp_sensors(self):
         self._create_inlet_temp('Inlet Temp 5', 0x01)
