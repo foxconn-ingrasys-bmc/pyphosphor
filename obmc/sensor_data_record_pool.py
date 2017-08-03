@@ -40,6 +40,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         self._init_psu_sensors()
         self._init_discrete_sensors()
         self._init_plx_switch_sensors()
+        self._init_mdot2_temp_sensors()
 
     def _init_inlet_temp_sensors(self):
         self._create_inlet_temp('Inlet Temp 5', 0x01)
@@ -144,6 +145,12 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         self._create_system_throttle('System Throttle', 0x8B)
         self._create_session_audit('Session Audit', 0x8C)
         self._create_system_event('System Event', 0x8D)
+
+    def _init_mdot2_temp_sensors(self):
+        self._create_mdot2_temp('M.2 1 Temp', 0x70)
+        self._create_mdot2_temp('M.2 2 Temp', 0x71)
+        self._create_mdot2_temp('M.2 3 Temp', 0x72)
+        self._create_mdot2_temp('M.2 4 Temp', 0x73)
 
     def _create_inlet_temp(self, sensor_name, sensor_number):
         sdr = SensorDataRecord()
@@ -679,6 +686,31 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.sensor_minimum_reading = None
         sdr.unr_threshold = None
         sdr.uc_threshold = None
+        sdr.unc_threshold = None
+        sdr.lnr_threshold = None
+        sdr.lc_threshold = None
+        sdr.lnc_threshold = None
+        sdr.sensor_name = sensor_name
+        self._add(sdr)
+
+    def _create_mdot2_temp(self, sensor_name, sensor_number):
+        sdr = SensorDataRecord()
+        sdr.sensor_number = sensor_number
+        sdr.sensor_type = 0x01
+        sdr.event_type = 0x01
+        sdr.assertion_event_mask = SensorDataRecord.SUPPORT_UC_GOING_HIGH
+        sdr.deassertion_event_mask = SensorDataRecord.SUPPORT_UC_GOING_HIGH
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_UNSIGNED
+        sdr.sensor_unit_2 = SensorDataRecord.UNIT_DEGREE_C
+        sdr.sensor_unit_3 = SensorDataRecord.UNIT_UNSPECIFIED
+        sdr.m_factor = 1
+        sdr.b_factor = 0
+        sdr.b_exp = 0
+        sdr.r_exp = 0
+        sdr.sensor_maximum_reading = None
+        sdr.sensor_minimum_reading = None
+        sdr.unr_threshold = None
+        sdr.uc_threshold = sdr.compress_raw_reading(85)
         sdr.unc_threshold = None
         sdr.lnr_threshold = None
         sdr.lc_threshold = None
