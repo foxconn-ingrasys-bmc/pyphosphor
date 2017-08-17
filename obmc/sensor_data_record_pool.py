@@ -45,10 +45,8 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         self._init_fpga2_temp_sensors()
 
     def _init_inlet_temp_sensors(self):
-        self._create_inlet_temp('Inlet Temp 5', 0x01)
-        self._create_inlet_temp('Inlet Temp 6', 0x02)
-        self._create_inlet_temp('Inlet Temp 7', 0x03)
-        self._create_inlet_temp('Inlet Temp 8', 0x04)
+        self._create_inlet_temp('FIO Inlet Temp 1', 0x05)
+        self._create_inlet_temp('FIO Inlet Temp 2', 0x06)
 
     def _init_fan_tach_sensors(self):
         self._create_fan_tach('Fan Tach 1', 0x11)
