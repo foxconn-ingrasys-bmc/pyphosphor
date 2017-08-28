@@ -271,7 +271,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x01
         sdr.assertion_event_mask = SensorDataRecord.SUPPORT_UC_GOING_HIGH
         sdr.deassertion_event_mask = SensorDataRecord.SUPPORT_UC_GOING_HIGH
-        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_SIGNED_2_COMPLEMENT
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_UNSIGNED
         sdr.sensor_unit_2 = SensorDataRecord.UNIT_DEGREE_C
         sdr.sensor_unit_3 = SensorDataRecord.UNIT_UNSPECIFIED
         sdr.m_factor = 1
@@ -325,7 +325,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.event_type = 0x01
         sdr.assertion_event_mask = SensorDataRecord.SUPPORT_UC_GOING_HIGH
         sdr.deassertion_event_mask = SensorDataRecord.SUPPORT_UC_GOING_HIGH
-        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_SIGNED_2_COMPLEMENT
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_UNSIGNED
         sdr.sensor_unit_2 = SensorDataRecord.UNIT_DEGREE_C
         sdr.sensor_unit_3 = SensorDataRecord.UNIT_UNSPECIFIED
         sdr.m_factor = 1
