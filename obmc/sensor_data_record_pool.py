@@ -37,6 +37,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         self._init_pwm_sensors()
         self._init_hsc_sensors()
         self._init_gpu_temp_sensors()
+        self._init_hbm_temp_sensors()
         self._init_psu_sensors()
         self._init_discrete_sensors()
         self._init_plx_switch_sensors()
@@ -107,6 +108,16 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         self._create_gpu_temp('GPU6 Temp', 0x46)
         self._create_gpu_temp('GPU7 Temp', 0x47)
         self._create_gpu_temp('GPU8 Temp', 0x48)
+
+    def _init_hbm_temp_sensors(self):
+        self._create_hbm_temp('GPU1 Mem Temp', 0x62)
+        self._create_hbm_temp('GPU2 Mem Temp', 0x63)
+        self._create_hbm_temp('GPU3 Mem Temp', 0x64)
+        self._create_hbm_temp('GPU4 Mem Temp', 0x65)
+        self._create_hbm_temp('GPU5 Mem Temp', 0x66)
+        self._create_hbm_temp('GPU6 Mem Temp', 0x67)
+        self._create_hbm_temp('GPU7 Mem Temp', 0x68)
+        self._create_hbm_temp('GPU8 Mem Temp', 0x69)
 
     def _init_psu_sensors(self):
         self._create_psu_pout('PSU1 Power Output', 0x50)
@@ -386,6 +397,31 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.sensor_minimum_reading = None
         sdr.unr_threshold = None
         sdr.uc_threshold = sdr.compress_raw_reading(81)
+        sdr.unc_threshold = None
+        sdr.lnr_threshold = None
+        sdr.lc_threshold = None
+        sdr.lnc_threshold = None
+        sdr.sensor_name = sensor_name
+        self._add(sdr)
+
+    def _create_hbm_temp(self, sensor_name, sensor_number):
+        sdr = SensorDataRecord()
+        sdr.sensor_number = sensor_number
+        sdr.sensor_type = 0x01
+        sdr.event_type = 0x01
+        sdr.assertion_event_mask = SensorDataRecord.SUPPORT_UC_GOING_HIGH
+        sdr.deassertion_event_mask = SensorDataRecord.SUPPORT_UC_GOING_HIGH
+        sdr.sensor_unit_1 = SensorDataRecord.UNIT_1_UNSIGNED
+        sdr.sensor_unit_2 = SensorDataRecord.UNIT_DEGREE_C
+        sdr.sensor_unit_3 = SensorDataRecord.UNIT_UNSPECIFIED
+        sdr.m_factor = 1
+        sdr.b_factor = 0
+        sdr.b_exp = 0
+        sdr.r_exp = 0
+        sdr.sensor_maximum_reading = None
+        sdr.sensor_minimum_reading = None
+        sdr.unr_threshold = None
+        sdr.uc_threshold = sdr.compress_raw_reading(85)
         sdr.unc_threshold = None
         sdr.lnr_threshold = None
         sdr.lc_threshold = None
