@@ -1432,6 +1432,28 @@ class Event(BaseEvent):
     OEM_EVENT_DATA_3_MESSAGE = {}
     OEM_DISCRETE_EVENT_DATA_2_MESSAGE = {}
     OEM_DISCRETE_EVENT_DATA_3_MESSAGE = {}
+    SERVICE_NAMES = (
+        None,
+        'obmc-redfish',
+        'obmc-phosphor-event',
+        'oob-ipmid',
+        'obmc-console-server',
+        'hwmon',
+        'fan_algorithm',
+        'bmchealth_handler',
+        'obmc-ast-watchdog',
+        'cable_led',
+        'button_id',
+        'power_control_sthelens',
+        'chassis_control',
+        'pex_core',
+        'pmbus_scanner',
+        'gpu_core',
+        'pcie-device-temperature',
+        'led_controller',
+        'control_bmc',
+        'fan_generic_obj',
+    )
 
     # pylint: disable=invalid-name
     # pylint: disable=too-many-arguments
@@ -1532,7 +1554,7 @@ class Event(BaseEvent):
         event_offset = cls._get_event_offset(event_data_1)
         if event_type == 0x70:
             if event_offset == 0x00:
-                return ', service ID %d' % event_data_2
+                return ', service %s' % cls.SERVICE_NAMES[event_data_2]
             elif event_offset == 0x01:
                 if event_data_2 == 0x01:
                     return ', link down'
