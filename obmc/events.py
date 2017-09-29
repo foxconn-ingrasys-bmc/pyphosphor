@@ -1582,7 +1582,7 @@ class Event(BaseEvent):
                 return ', %d%%' % utilization
             elif event_offset == 0x07:
                 memory_usage = event_data_2
-                return ', %d MB' % memory_usage
+                return ', %d%%' % memory_usage
             elif event_offset == 0x08:
                 if event_data_2 == 0x01:
                     return ', register / pin reset'
