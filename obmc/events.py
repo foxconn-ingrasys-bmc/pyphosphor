@@ -394,8 +394,8 @@ class BaseEvent(object):
         'Battery Failed',
         'Battery Presence Detected',
     ), ( # 0x2A
-        'Sensor Activated',
-        'Sensor Deactivated',
+        'Session Activated',
+        'Session Deactivated',
         'Invalid Username Or Password',
         'Invalid Password Disable',
     ), ( # 0x2B
