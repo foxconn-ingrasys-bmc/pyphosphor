@@ -1217,7 +1217,7 @@ class BaseEvent(object):
             return ''
         elif event_data_2_usage == 0b01:
             raw_reading = sdr.decompress_unit_reading(event_data_2)
-            message = ', trigger reading %.2f' % raw_reading
+            message = ', trigger reading %.1f' % raw_reading
             if sdr.unit_name is not None:
                 message = '%s %s' % (message, sdr.unit_name)
             return message
@@ -1239,7 +1239,7 @@ class BaseEvent(object):
             return ''
         elif event_data_3_usage == 0b01:
             threshold = sdr.decompress_unit_reading(event_data_3)
-            message = ', threshold reading %.2f' % threshold
+            message = ', threshold reading %.1f' % threshold
             if sdr.unit_name is not None:
                 message = '%s %s' % (message, sdr.unit_name)
             return message

@@ -315,7 +315,7 @@ class SensorDataRecordPool(BaseSensorDataRecordPool):
         sdr.sensor_unit_2 = SensorDataRecord.UNIT_VOLTS
         sdr.sensor_unit_3 = SensorDataRecord.UNIT_UNSPECIFIED
         sdr.m_factor = 8
-        sdr.b_factor = -113
+        sdr.b_factor = -110
         sdr.b_exp = 0
         sdr.r_exp = 0
         sdr.sensor_maximum_reading = None
