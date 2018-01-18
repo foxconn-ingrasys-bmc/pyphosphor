@@ -19,17 +19,17 @@ class Event(object):
 
     # pylint: disable=too-many-arguments
     def __init__(
-            self,
-            severity=SEVERITY_INFO,
+		    self,
+            severity = SEVERITY_INFO,
             message='',
-            sensor_type='',
-            sensor_number=0,
+            #sensor_type='',
+            #sensor_number=0,
             association='',
             debug_data=''):
-        self.severity = str(severity)
-        self.message = str(message)
-        self.sensor_type = str(sensor_type)
-        self.sensor_number = str(sensor_number)
+	self.message = str(message)
+	self.severity = str(severity)
+        #self.sensor_type = str(sensor_type)
+        #self.sensor_number = str(sensor_number)
         self.association = str(association)
         self.debug_data = str(debug_data)
         self.logid = 0
@@ -38,14 +38,14 @@ class Event(object):
     # pylint: enable=too-many-arguments
 
     def __str__(self):
-        return '%d %s %s %s %s %s %s %s %s' % (
+        return '%d %s %s %s %s %s %s ' % (
             self.logid,
             self.time,
             self.reported_by,
-            self.severity,
             self.message,
-            self.sensor_type,
-            self.sensor_number,
+            self.severity,	
+	    #self.sensor_type,
+            #self.sensor_number,
             self.association,
             self.debug_data)
 
@@ -76,28 +76,6 @@ class Event(object):
         self._message = str(message)
 
     message = property(_get_message, _set_message)
-
-    def _get_sensor_type(self):
-        return self._sensor_type
-
-    def _set_sensor_type(self, sensor_type):
-        self._sensor_type = str(sensor_type)
-
-    sensor_type = property(_get_sensor_type, _set_sensor_type)
-
-    def _get_sensor_number(self):
-        return self._sensor_number
-
-    def _set_sensor_number(self, sensor_number):
-        if isinstance(sensor_number, str) and sensor_number[:2] == '0x':
-            self._sensor_number = sensor_number
-            return
-        if isinstance(sensor_number, unicode) and sensor_number[:2] == '0x':
-            self._sensor_number = sensor_number
-            return
-        self._sensor_number = str('0x%02X' % int(sensor_number))
-
-    sensor_number = property(_get_sensor_number, _set_sensor_number)
 
     def _get_association(self):
         return self._association
@@ -144,7 +122,7 @@ class Event(object):
         Create an Event instance from binary stream.
         '''
         magic_number, version, logid, tv_sec, _, message_len, \
-            severity_len, sensor_type_len, sensor_number_len, \
+            severity_len, \
             association_len, reporter_len, debug_data_len = \
             struct.unpack('@IHHIIHHHHHHHxx', stream[:32])
         if not (magic_number == cls.MAGIC_NUMBER and version == cls.VERSION):
@@ -154,8 +132,8 @@ class Event(object):
         log.logid = logid
         log.message, stream = cls._load_string(message_len, stream)
         log.severity, stream = cls._load_string(severity_len, stream)
-        log.sensor_type, stream = cls._load_string(sensor_type_len, stream)
-        log.sensor_number, stream = cls._load_string(sensor_number_len, stream)
+        #log.sensor_type, stream = cls._load_string(sensor_type_len, stream)
+        #log.sensor_number, stream = cls._load_string(sensor_number_len, stream)
         log.association, stream = cls._load_string(association_len, stream)
         log.reported_by, stream = cls._load_string(reporter_len, stream)
         log.debug_data = stream[:debug_data_len]
@@ -175,7 +153,7 @@ class EventManager(object):
             '/org/openbmc/records/events')
 
     def _get_event_object(self, logid):
-        object_path = '/org/openbmc/records/events/%d' % logid
+	object_path = '/org/openbmc/records/events/%d' % logid
         return self._bus.get_object(self.SERVICE_NAME, object_path)
 
     def add_log(self, log):
@@ -184,11 +162,12 @@ class EventManager(object):
         If succeeds, a log ID between 1 and 65535 is returned.
         If fails, 0 is returned.
         '''
+
         log.logid = self._events.acceptBMCMessage(
-            str(log.severity),
             str(log.message),
-            str(log.sensor_type),
-            str(log.sensor_number),
+			str(log.severity),
+            #str(log.sensor_type),
+            #str(log.sensor_number),
             str(log.association),
             dbus.ByteArray(log.debug_data),
             dbus_interface='org.openbmc.recordlog')
