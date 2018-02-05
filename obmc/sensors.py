@@ -169,6 +169,7 @@ class HwmonSensor(SensorValue, SensorThresholds):
             val = (
                 self.properties[SensorValue.IFACE_NAME]['value']
                 - offset) * scale
+            print "willen if True : ",val
             return [True, val]
         else:
             # Keep the val as integer. scale may be floating point
@@ -177,6 +178,7 @@ class HwmonSensor(SensorValue, SensorThresholds):
                 SensorValue.setValue(self, val)
                 self.check_thresholds(val)
                 self.value = val
+		print "willen else : ",val
 
             return [False, 0]
 
