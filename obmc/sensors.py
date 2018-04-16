@@ -162,6 +162,8 @@ class HwmonSensor(SensorValue, SensorThresholds):
     def setByPoll(self, value):
         scale = self.properties[HwmonSensor.IFACE_NAME]['scale']
         offset = self.properties[HwmonSensor.IFACE_NAME]['offset']
+        if value == 'N/A':
+            self.value = None
         if self.value_dirty:
             ## new value externally set, so just return to hwmon
             ## process to write value
