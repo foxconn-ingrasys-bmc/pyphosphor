@@ -94,7 +94,7 @@ class Event(object):
     debug_data = property(_get_debug_data, _set_debug_data)
 
     def _get_time(self):
-        return self._time.strftime('%Y:%m:%d %H:%M:%S')
+        return self._time.strftime('%Y-%m-%d %H:%M:%S')
 
     def _set_time(self, timestamp):
         self._time = datetime.datetime.fromtimestamp(timestamp)
